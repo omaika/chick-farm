@@ -49,10 +49,13 @@ func buildWithHome(t *testing.T) (bin, home string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		exec.Command("pkill", "-TERM", "-f", "^"+bin+" serve$").Run()
-		sock := filepath.Join(home, ".piggery", "piggery.sock")
-		for i := 0; i < 100; i++ {
-			if _, err := os.Stat(sock); os.IsNotExist(err) {
+		// shutdown returns once the daemon has stopped; on Windows its binary stays locked until
+		// the process is gone, so wait for that before the temp dir is removed.
+		cmd := exec.Command(bin, "--admin", "shutdown")
+		cmd.Env = append(os.Environ(), "HOME="+home, "USERPROFILE="+home)
+		cmd.Run()
+		for i := 0; i < 250; i++ {
+			if err := os.Remove(bin); err == nil || os.IsNotExist(err) {
 				break
 			}
 			time.Sleep(20 * time.Millisecond)

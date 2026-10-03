@@ -313,7 +313,11 @@ func TestInspectAndKillVerified(t *testing.T) {
 	}
 
 	ex, err := d.KillVerified(ctx, proc)
-	if err != nil || ex.Signal != "SIGTERM" || !slices.Equal(signals, []syscall.Signal{syscall.SIGTERM}) {
+	want, wantSignals := "SIGTERM", []syscall.Signal{syscall.SIGTERM}
+	if !platform.Signals { // no SIGTERM: the worker and its tree are killed at once
+		want, wantSignals = "SIGKILL", slices.Repeat([]syscall.Signal{syscall.SIGKILL}, len(signals))
+	}
+	if err != nil || ex.Signal != want || len(signals) == 0 || !slices.Equal(signals, wantSignals) {
 		t.Fatalf("kill verified = %+v, %v, signals %v", ex, err, signals)
 	}
 	if st, err := d.Inspect(ctx, proc); err != nil || st != core.ProcDead {
