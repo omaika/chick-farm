@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.8.0 - 2026-10-03
 
 piggery runs on Windows (amd64 and arm64): `irm https://raw.githubusercontent.com/sting8k/piggery/main/install.ps1 | iex`.
 
