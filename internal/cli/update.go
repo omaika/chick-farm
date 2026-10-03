@@ -111,6 +111,9 @@ func (u updater) get(ctx context.Context, url string) ([]byte, error) {
 // checksum or any failure leaves the binary as it was.
 func (u updater) install(ctx context.Context, r release) error {
 	name := fmt.Sprintf("piggery-%s-%s", u.goos, u.goarch)
+	if u.goos == "windows" {
+		name += ".exe"
+	}
 	binURL, ok := r.asset(name)
 	if !ok {
 		return fmt.Errorf("release %s has no %s (no build for %s/%s)", r.Tag, name, u.goos, u.goarch)
@@ -176,7 +179,7 @@ func (u updater) install(ctx context.Context, r release) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp.Name(), exe)
+	return replaceExe(tmp.Name(), exe)
 }
 
 // run is `update`: --check prints the versions only; else it installs the latest release unless

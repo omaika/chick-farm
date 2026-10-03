@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/sting8k/piggery/internal/core"
+	"github.com/sting8k/piggery/internal/platform"
 	"github.com/sting8k/piggery/internal/proto"
 	"github.com/sting8k/piggery/internal/server"
 )
@@ -28,7 +28,7 @@ func (e *env) shutdown(args []string) error {
 		return fmt.Errorf("%w: shutdown takes no arguments", errUsage)
 	}
 	c, err := e.dial(false)
-	if errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ECONNREFUSED) {
+	if platform.NotRunning(err) {
 		fmt.Fprintln(e.stdout, "not running")
 		return nil
 	}
@@ -63,7 +63,7 @@ func (e *env) stopDaemon(c *Client) error {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	if _, err := os.Stat(server.SocketPath(e.dir)); err == nil {
+	if platform.SocketExists(server.SocketPath(e.dir)) {
 		return fmt.Errorf("daemon exited but left %s", server.SocketPath(e.dir))
 	}
 	return nil
@@ -83,7 +83,7 @@ func (e *env) restart(args []string) error {
 	var workers []string
 	c, err := e.dial(false)
 	switch {
-	case errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ECONNREFUSED):
+	case platform.NotRunning(err):
 	case err != nil:
 		return err
 	default:
@@ -135,9 +135,6 @@ func lockFree(path string) (bool, error) {
 		return false, err
 	}
 	defer f.Close()
-	err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
-	if errors.Is(err, syscall.EWOULDBLOCK) {
-		return false, nil
-	}
-	return err == nil, err
+	held, err := platform.TryLock(f)
+	return !held && err == nil, err
 }

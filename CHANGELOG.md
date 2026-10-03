@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+piggery runs on Windows (amd64 and arm64): `irm https://raw.githubusercontent.com/sting8k/piggery/main/install.ps1 | iex`.
+
+After upgrading, run `piggery setup --outdated`: the pi and omp integrations are now 4 and dsh 5
+(they find the daemon's named pipe on Windows; nothing changes on macOS and Linux).
+
+- On Windows the daemon listens on a named pipe (`\\.\pipe\piggery-<hash of ~/.piggery>`, this
+  user only) instead of `~/.piggery/piggery.sock`; peer checks, the singleton lock and the process
+  table use the Windows APIs instead of `ps` and `flock`.
+- Windows has no SIGTERM: stopping a worker closes its stdin, waits, then ends its whole process
+  tree.
+- Notify hooks on Windows are the `.exe`, `.com`, `.cmd`, `.bat` and `.ps1` files of
+  `hooks/notify.d/`; `setup notify add` (sh scripts) is not available there.
+- `piggery update` on Windows moves the running `piggery.exe` aside to `piggery.exe.old` and removes
+  it on a later update.
+- Releases carry `piggery-windows-amd64.exe` and `piggery-windows-arm64.exe`.
+
 ## v0.7.0 - 2026-10-03
 
 piggery now tells you, by itself, when a team's mail flow needs you, and `piggery check` tests your

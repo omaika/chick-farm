@@ -16,13 +16,15 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	dshext "github.com/sting8k/piggery/extensions/dsh"
 	ompext "github.com/sting8k/piggery/extensions/omp"
 	piext "github.com/sting8k/piggery/extensions/pi"
 	"github.com/sting8k/piggery/internal/core"
+	"github.com/sting8k/piggery/internal/platform"
 	"github.com/sting8k/piggery/internal/proto"
 	"github.com/sting8k/piggery/internal/server"
-	"gopkg.in/yaml.v3"
 )
 
 // fakeDaemon answers requests on dir's socket with answer(verb, args) and can push frames to
@@ -36,7 +38,7 @@ type fakeDaemon struct {
 
 func startFakeDaemon(t *testing.T, dir string, answer func(string, json.RawMessage) any) *fakeDaemon {
 	t.Helper()
-	ln, err := net.Listen("unix", server.SocketPath(dir))
+	ln, err := platform.Listen(server.SocketPath(dir))
 	if err != nil {
 		t.Fatal(err)
 	}

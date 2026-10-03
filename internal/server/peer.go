@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/sting8k/piggery/internal/driver/local"
+	"github.com/sting8k/piggery/internal/platform"
 )
 
 // hostDepth bounds the walk from the peer up to the host process. Measured (Claude 2.1.283 live):
@@ -60,7 +61,7 @@ func (c *conn) peerOK(host string, depth int) bool {
 	if ok, seen := c.hosts[host]; seen {
 		return ok
 	}
-	pid, err := peerPID(c.nc)
+	pid, err := platform.PeerPID(c.nc)
 	ok := err == nil && hostMatches(pid, host, depth)
 	if c.hosts == nil {
 		c.hosts = map[string]bool{}

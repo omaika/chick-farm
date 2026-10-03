@@ -17,11 +17,11 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/sting8k/piggery/internal/core"
 	"github.com/sting8k/piggery/internal/driver/local"
+	"github.com/sting8k/piggery/internal/platform"
 	"github.com/sting8k/piggery/internal/proto"
 	"github.com/sting8k/piggery/internal/store"
 	"github.com/sting8k/piggery/manifests"
@@ -52,7 +52,8 @@ func DefaultDir() (string, error) {
 	return filepath.Join(home, ".piggery"), nil
 }
 
-func SocketPath(dir string) string     { return filepath.Join(dir, "piggery.sock") }
+// SocketPath is the daemon's socket for dir (a named pipe on Windows).
+func SocketPath(dir string) string     { return platform.SocketPath(dir) }
 func AdminTokenPath(dir string) string { return filepath.Join(dir, "admin.token") }
 func LockPath(dir string) string       { return filepath.Join(dir, "piggery.lock") }
 func DBPath(dir string) string         { return filepath.Join(dir, "piggery.db") }
@@ -239,15 +240,8 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 
 	sock := SocketPath(cfg.Dir)
-	if err := os.Remove(sock); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	ln, err := net.Listen("unix", sock)
+	ln, err := platform.Listen(sock)
 	if err != nil {
-		return err
-	}
-	if err := os.Chmod(sock, 0o600); err != nil {
-		ln.Close()
 		return err
 	}
 
@@ -655,15 +649,15 @@ func (s *server) unauthorized(verb, msg string) *core.Error {
 	return &core.Error{Code: core.CodeUnauthorized, Message: msg, Layer: "token"}
 }
 
-// lock takes an exclusive, non-blocking flock on path.
+// lock takes an exclusive, non-blocking lock on path.
 func lock(path string) (func(), error) {
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		return nil, err
 	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if held, err := platform.TryLock(f); held || err != nil {
 		f.Close()
-		if errors.Is(err, syscall.EWOULDBLOCK) {
+		if held {
 			return nil, fmt.Errorf("another piggery serve holds %s", path)
 		}
 		return nil, err

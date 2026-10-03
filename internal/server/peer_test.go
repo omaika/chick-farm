@@ -2,13 +2,13 @@ package server
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/sting8k/piggery/internal/driver/local"
+	"github.com/sting8k/piggery/internal/platform"
 )
 
 // Auth by host trusts the peer's process tree, not the host string: a caller that is not the host
@@ -18,6 +18,9 @@ func TestHostNeedsPeerInItsTree(t *testing.T) {
 	host := func(pid int) string { return fmt.Sprintf("claude:%d:%d", pid, local.ProcessStartTime(pid)) }
 
 	other := exec.Command("sleep", "30") // a live process the test is not a descendant of
+	if runtime.GOOS == "windows" {
+		other = exec.Command("ping", "-n", "30", "127.0.0.1")
+	}
 	if err := other.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -33,14 +36,14 @@ func TestHostNeedsPeerInItsTree(t *testing.T) {
 	}
 
 	// The peer pid read from the socket is the connecting process.
-	sock := filepath.Join(t.TempDir(), "s")
-	ln, err := net.Listen("unix", sock)
+	sock := platform.SocketPath(t.TempDir())
+	ln, err := platform.Listen(sock)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer ln.Close()
 	go func() {
-		if c, err := net.Dial("unix", sock); err == nil {
+		if c, err := platform.Dial(sock, 0); err == nil {
 			defer c.Close()
 			c.Read(make([]byte, 1))
 		}
@@ -50,7 +53,7 @@ func TestHostNeedsPeerInItsTree(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.Close()
-	if pid, err := peerPID(c); err != nil || pid != self {
+	if pid, err := platform.PeerPID(c); err != nil || pid != self {
 		t.Fatalf("peer pid = %d, %v; want %d", pid, err, self)
 	}
 }

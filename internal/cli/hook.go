@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/sting8k/piggery/internal/core"
 	"github.com/sting8k/piggery/internal/driver/local"
+	"github.com/sting8k/piggery/internal/platform"
 	"github.com/sting8k/piggery/internal/proto"
 )
 
@@ -263,18 +262,17 @@ func processHost(pid int, names ...string) string {
 		if pid <= 1 {
 			return ""
 		}
-		out, err := exec.Command("ps", "-o", "ppid=,comm=", "-p", strconv.Itoa(pid)).Output()
-		f := strings.Fields(string(out))
-		if err != nil || len(f) < 2 {
+		ppid, comm, ok := platform.Parent(pid)
+		if !ok {
 			return ""
 		}
-		if name := filepath.Base(strings.Join(f[1:], " ")); slices.Contains(names, name) {
+		if name := filepath.Base(comm); slices.Contains(names, name) {
 			if st := local.ProcessStartTime(pid); st != 0 {
 				return fmt.Sprintf("%s:%d:%d", name, pid, st)
 			}
 			return ""
 		}
-		pid, _ = strconv.Atoi(f[0])
+		pid = ppid
 	}
 	return ""
 }

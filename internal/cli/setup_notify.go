@@ -111,6 +111,9 @@ func (e *env) setupNotify(dir string, args []string, force bool) error {
 	if err != nil {
 		return err
 	}
+	if args[0] == "add" && runtime.GOOS == "windows" {
+		return fmt.Errorf("setup notify add writes sh scripts, which Windows does not run: put your own .cmd, .ps1 or .exe hook in %s (it gets each notice as one JSON line on stdin)", hooksDir)
+	}
 	path := filepath.Join(hooksDir, t.file)
 	_, statErr := os.Stat(path)
 	exists := statErr == nil
