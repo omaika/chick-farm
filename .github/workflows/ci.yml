@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      os:
+        description: Which jobs to run
+        type: choice
+        options: [all, windows, unix]
+        default: all
 
 permissions:
   contents: read
@@ -16,6 +22,8 @@ concurrency:
 jobs:
   test:
     name: Test (${{ matrix.os }})
+    # A manual run may pick only Windows; a push or pull request runs everything.
+    if: github.event_name != 'workflow_dispatch' || inputs.os != 'windows'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -45,6 +53,7 @@ jobs:
   # POSIX shells, signals and file modes), so its failures are reported without failing CI.
   windows:
     name: Windows
+    if: github.event_name != 'workflow_dispatch' || inputs.os != 'unix'
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
