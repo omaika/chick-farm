@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Windows: pi and omp workers start without Developer Mode. A worker's agent dir links to your
+  own entries with symlinks, which Windows only allows with Developer Mode on or elevated; without
+  that, a folder is now linked as a junction and a file as a hard link.
+
 ## v0.8.0 - 2026-10-03
 
 piggery runs on Windows (amd64 and arm64): `irm https://raw.githubusercontent.com/sting8k/piggery/main/install.ps1 | iex`.

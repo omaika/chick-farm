@@ -13,3 +13,6 @@ func SyncDir(dir string) error {
 	defer d.Close()
 	return d.Sync()
 }
+
+// Link makes link a symlink to target.
+func Link(target, link string) error { return os.Symlink(target, link) }
