@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -19,14 +20,14 @@ func TestAdminTeamUpOnCleanHome(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(bin, "--admin", "team", "up", "p2p", "--cwd", repo)
-	cmd.Env = append(os.Environ(), "HOME="+home)
+	cmd.Env = append(os.Environ(), "HOME="+home, "USERPROFILE="+home)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("team up on clean home: %v\n%s", err, out)
 	}
 	// The shipped supervisor-executor manifest uses instructions_file, which core rejects: the CLI must
 	// inline it (relative to the manifest) before team up.
 	cmd = exec.Command(bin, "--admin", "team", "up", "supervisor-executor", "--cwd", repo)
-	cmd.Env = append(os.Environ(), "HOME="+home)
+	cmd.Env = append(os.Environ(), "HOME="+home, "USERPROFILE="+home)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("team up supervisor-executor: %v\n%s", err, out)
 	}
@@ -36,6 +37,9 @@ func TestAdminTeamUpOnCleanHome(t *testing.T) {
 func buildWithHome(t *testing.T) (bin, home string) {
 	t.Helper()
 	bin = filepath.Join(t.TempDir(), "piggery")
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
+	}
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}
@@ -70,7 +74,7 @@ func TestMCPThroughMain(t *testing.T) {
 	run := func(env []string, stdin string, args ...string) []byte {
 		t.Helper()
 		cmd := exec.Command(bin, args...)
-		cmd.Env = append(append(os.Environ(), "HOME="+home), env...)
+		cmd.Env = append(append(os.Environ(), "HOME="+home, "USERPROFILE="+home), env...)
 		cmd.Stdin = strings.NewReader(stdin)
 		out, err := cmd.Output()
 		if err != nil {
@@ -113,7 +117,7 @@ func TestRestart(t *testing.T) {
 	run := func(args ...string) string {
 		t.Helper()
 		cmd := exec.Command(bin, args...)
-		cmd.Env = append(os.Environ(), "HOME="+home)
+		cmd.Env = append(os.Environ(), "HOME="+home, "USERPROFILE="+home)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("%v: %v\n%s", args, err, out)
