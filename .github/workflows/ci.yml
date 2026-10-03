@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      os:
+        description: Which jobs to run
+        type: choice
+        options: [all, windows, unix]
+        default: all
 
 permissions:
   contents: read
@@ -16,6 +22,8 @@ concurrency:
 jobs:
   test:
     name: Test (${{ matrix.os }})
+    # A manual run may pick only Windows; a push or pull request runs everything.
+    if: github.event_name != 'workflow_dispatch' || inputs.os != 'windows'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -41,10 +49,10 @@ jobs:
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
-  # Windows: build and vet must pass. The test suite is still being ported (many tests drive
-  # POSIX shells, signals and file modes), so its failures are reported without failing CI.
+  # Windows: the same checks. Tests that drive POSIX shells skip themselves there.
   windows:
     name: Windows
+    if: github.event_name != 'workflow_dispatch' || inputs.os != 'unix'
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -60,6 +68,5 @@ jobs:
       - run: go build ./...
       - run: go vet ./...
       - run: go test ./...
-        continue-on-error: true
-      - run: node --test extensions/pi/
-        continue-on-error: true
+      - run: node --test extensions/pi/*.test.mjs
+        shell: bash

@@ -409,6 +409,7 @@ func TestHookCodexSession(t *testing.T) {
 
 // piggery mcp in a Codex TUI wakes it with `codex queue --thread <the ref the wake names>`.
 func TestMCPCodexWakeQueues(t *testing.T) {
+	skipOnWindows(t, "fakes a program with a sh script")
 	dir, err := os.MkdirTemp("", "pgmcpx")
 	if err != nil {
 		t.Fatal(err)

@@ -2,12 +2,12 @@
 # Install piggery from a GitHub release: the binary for this OS and CPU, checked against the
 # release's checksums.txt, into $PIGGERY_INSTALL_DIR (default ~/.local/bin). No sudo.
 #
-#   curl -fsSL https://raw.githubusercontent.com/sting8k/piggery/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/omaika/chick-farm/main/install.sh | sh
 #
 # PIGGERY_VERSION=vX.Y.Z installs that release instead of the latest.
 set -eu
 
-repo="https://github.com/sting8k/piggery/releases"
+repo="https://github.com/omaika/chick-farm/releases"
 dir="${PIGGERY_INSTALL_DIR:-$HOME/.local/bin}"
 
 fail() {
@@ -18,7 +18,7 @@ fail() {
 case "$(uname -s)" in
 Linux) os=linux ;;
 Darwin) os=darwin ;;
-MINGW* | MSYS* | CYGWIN*) fail "on Windows, run in PowerShell: irm https://raw.githubusercontent.com/sting8k/piggery/main/install.ps1 | iex" ;;
+MINGW* | MSYS* | CYGWIN*) fail "on Windows, run in PowerShell: irm https://raw.githubusercontent.com/omaika/chick-farm/main/install.ps1 | iex" ;;
 *) fail "unsupported OS $(uname -s): builds exist for Linux, macOS and Windows" ;;
 esac
 case "$(uname -m)" in

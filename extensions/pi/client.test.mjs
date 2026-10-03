@@ -4,11 +4,11 @@ import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { Client } from "./client.mjs";
+import { Client, socketPath } from "./client.mjs";
 
 test("a run.stale answer to any call stops the client for good", async () => {
 	const dir = mkdtempSync(join(tmpdir(), "pgc"));
-	const path = join(dir, "s.sock");
+	const path = socketPath(dir);
 	let connections = 0;
 	// Identify succeeds; every later call is answered as from a superseded run.
 	const server = net.createServer((c) => {

@@ -13,6 +13,7 @@ import (
 // file the user wrote is refused (and replaced only with --force); a written file, run on a sample
 // notice, calls its target with the fields as arguments or stdin and never inside a command string.
 func TestSetupNotify(t *testing.T) {
+	skipOnWindows(t, "fakes a program with a sh script")
 	if _, err := exec.LookPath("jq"); err != nil {
 		t.Skip("the notify scripts need jq")
 	}

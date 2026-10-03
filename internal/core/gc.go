@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/sting8k/piggery/internal/platform"
 )
 
 // Team down and gc of closed teams, kept safe: gc only touches closed teams, and deletes nothing
@@ -573,12 +575,7 @@ func writeArchive(path string, lines []ArchiveLine) error {
 	if err := os.Rename(tmp, path); err != nil {
 		return err
 	}
-	d, err := os.Open(dir)
-	if err != nil {
-		return err
-	}
-	defer d.Close()
-	return d.Sync()
+	return platform.SyncDir(dir)
 }
 
 // ReadArchive reads a gc archive (also `piggery --admin archive show`).

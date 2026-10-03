@@ -152,7 +152,9 @@ func newDriver(t *testing.T, mode string, opts Options) (*Driver, string) {
 	}
 	t.Setenv("PGDRV_FIXTURE", abs)
 	t.Setenv("PIGGERY_DISABLED", "1") // must not reach the worker
-	t.Setenv("HOME", t.TempDir())     // no human pi setup: the worker agent dir is built from nothing
+	home := t.TempDir()
+	t.Setenv("HOME", home)        // no human pi setup: the worker agent dir is built from nothing
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("PI_CODING_AGENT_DIR", "")
 	return New(dir, opts), dir
 }
@@ -311,7 +313,11 @@ func TestInspectAndKillVerified(t *testing.T) {
 	}
 
 	ex, err := d.KillVerified(ctx, proc)
-	if err != nil || ex.Signal != "SIGTERM" || !slices.Equal(signals, []syscall.Signal{syscall.SIGTERM}) {
+	want, wantSignals := "SIGTERM", []syscall.Signal{syscall.SIGTERM}
+	if !platform.Signals { // no SIGTERM: the worker and its tree are killed at once
+		want, wantSignals = "SIGKILL", slices.Repeat([]syscall.Signal{syscall.SIGKILL}, len(signals))
+	}
+	if err != nil || ex.Signal != want || len(signals) == 0 || !slices.Equal(signals, wantSignals) {
 		t.Fatalf("kill verified = %+v, %v, signals %v", ex, err, signals)
 	}
 	if st, err := d.Inspect(ctx, proc); err != nil || st != core.ProcDead {
@@ -419,6 +425,7 @@ func TestAbortAndSetModel(t *testing.T) {
 // Kill asks with SIGTERM: a worker that exits on it returns at once, well before the grace, with
 // its own exit (not SIGKILL's), and what it left behind is swept.
 func TestKillAsksBeforeForcing(t *testing.T) {
+	skipOnWindows(t, "no SIGTERM to ask with")
 	d, dir := newDriver(t, "polite", Options{KillWait: time.Minute})
 	ctx := context.Background()
 	if _, err := d.Start(ctx, core.Spec{ParticipantID: "p7", RunID: "r7", Token: "tok", Cwd: dir, HarnessRef: "sess-7"}); err != nil {

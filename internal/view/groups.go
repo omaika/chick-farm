@@ -230,13 +230,16 @@ func FoldGone(ms []core.MemberState) (kept, folded []core.MemberState) {
 	return kept, folded
 }
 
-// deepestRoot is the longest root that is cwd or holds it; none: cwd itself.
+// deepestRoot is the longest root that is cwd or holds it, as listed (the key of its team's
+// directory); none: cwd itself.
 func deepestRoot(cwd string, roots []string) string {
-	best := ""
-	for _, r := range roots {
-		r = filepath.Clean(r)
-		if (cwd == r || strings.HasPrefix(cwd, strings.TrimSuffix(r, "/")+"/")) && len(r) > len(best) {
-			best = r
+	best, bestLen := "", 0
+	c := filepath.Clean(cwd)
+	sep := string(filepath.Separator)
+	for _, root := range roots {
+		r := filepath.Clean(root)
+		if (c == r || strings.HasPrefix(c, strings.TrimSuffix(r, sep)+sep)) && len(r) > bestLen {
+			best, bestLen = root, len(r)
 		}
 	}
 	if best == "" {

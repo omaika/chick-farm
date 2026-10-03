@@ -114,6 +114,7 @@ func TestOmpEntryImportsMatchShared(t *testing.T) {
 func TestOmpHumanAgentDir(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("PI_CONFIG_DIR", "")
 	t.Setenv("PI_PROFILE", "")
 	t.Setenv("OMP_PROFILE", "")

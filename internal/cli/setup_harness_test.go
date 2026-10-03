@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,12 +16,18 @@ import (
 )
 
 // TestMain lets this test binary stand in for `claude` (fakeClaude) and `paseo` (fakePaseo) when
-// a test puts it on PATH under that name.
+// a test puts it on PATH under that name, and refuses to be the daemon.
 func TestMain(m *testing.M) {
-	if log := os.Getenv("PIGGERY_FAKE_CLAUDE"); log != "" && filepath.Base(os.Args[0]) == "claude" {
+	// A test whose command autostarts the daemon runs `<this binary> serve`: that must not run the
+	// whole suite again (which autostarts again, and so on).
+	if len(os.Args) > 1 && os.Args[1] == "serve" {
+		fmt.Fprintln(os.Stderr, "piggery serve: the cli test binary is no daemon")
+		os.Exit(1)
+	}
+	if log := os.Getenv("PIGGERY_FAKE_CLAUDE"); log != "" && strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe") == "claude" {
 		os.Exit(fakeClaude(log, os.Args[1:]))
 	}
-	if log := os.Getenv("PIGGERY_FAKE_PASEO"); log != "" && filepath.Base(os.Args[0]) == "paseo" {
+	if log := os.Getenv("PIGGERY_FAKE_PASEO"); log != "" && strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe") == "paseo" {
 		os.Exit(fakePaseo(log, os.Args[1:]))
 	}
 	os.Exit(m.Run())
@@ -126,8 +133,9 @@ func changes(t *testing.T, log string) []string {
 func TestSetupClaudeInstallRemove(t *testing.T) {
 	home, bin := t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	exe, _ := os.Executable()
-	os.Symlink(exe, filepath.Join(bin, "claude"))
+	os.Symlink(exe, filepath.Join(bin, "claude"+exeSuffix))
 	t.Setenv("PATH", bin)
 	log := filepath.Join(home, "argv")
 	t.Setenv("PIGGERY_FAKE_CLAUDE", log)
@@ -187,6 +195,7 @@ func TestSetupClaudeInstallRemove(t *testing.T) {
 func TestSetupPiInstallRemove(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("PI_CODING_AGENT_DIR", "")
 	t.Setenv("PATH", t.TempDir())
 	dir := filepath.Join(home, ".piggery")
@@ -274,6 +283,7 @@ func TestSetupPiInstallRemove(t *testing.T) {
 func TestSetupOmpInstallRemove(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("PI_CODING_AGENT_DIR", "")
 	t.Setenv("PI_CONFIG_DIR", "")
 	t.Setenv("PATH", t.TempDir())
@@ -324,6 +334,7 @@ func TestSetupOmpInstallRemove(t *testing.T) {
 func TestSetupDshInstallRemove(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("DSH_HOME", "")
 	t.Setenv("PATH", t.TempDir())
 	dir := filepath.Join(home, ".piggery")
@@ -340,7 +351,7 @@ func TestSetupDshInstallRemove(t *testing.T) {
 		!strings.Contains(string(got), local.DshEntry(dir)) || !strings.Contains(string(got), "sessions: '"+local.DshSessionsDir(dir)+"'") {
 		t.Fatalf("home patch after install: %v\n%s", err, got)
 	}
-	if st, _ := os.Stat(patch); st.Mode().Perm() != 0o644 {
+	if st, _ := os.Stat(patch); unixModes && st.Mode().Perm() != 0o644 {
 		t.Fatalf("mode %v: the user's file mode changed", st.Mode())
 	}
 	if msg, _ := installDsh(dir); !strings.Contains(msg, "already") {

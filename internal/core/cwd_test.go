@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"database/sql"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -66,6 +67,12 @@ func realDir(t *testing.T) string {
 	return d
 }
 
+// jsonString is s as a JSON string (a Windows path has backslashes).
+func jsonString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}
+
 func git(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...)
@@ -116,7 +123,7 @@ func TestSpawnCwdBounds(t *testing.T) {
 	}
 	var payload string
 	if err := f.db.QueryRow(`SELECT payload FROM events WHERE type='spawned' AND payload LIKE '%in-lane%'`).Scan(&payload); err != nil ||
-		!strings.Contains(payload, `"cwd":"`+lane+`"`) {
+		!strings.Contains(payload, `"cwd":`+jsonString(lane)) {
 		t.Fatalf("spawned event %s, %v; want its cwd", payload, err)
 	}
 	s := f.rt.starts[0] // in-root, a worker: no can_set_cwd

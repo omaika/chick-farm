@@ -174,15 +174,18 @@ func TestOpenBacksUpBeforeMigrating(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cp.Close()
 	var version, marker string
-	if err := cp.QueryRow(`SELECT (SELECT value FROM meta WHERE key='schema_version'), (SELECT value FROM meta WHERE key='marker')`).
-		Scan(&version, &marker); err != nil || version != "20" || marker != "kept" {
+	err = cp.QueryRow(`SELECT (SELECT value FROM meta WHERE key='schema_version'), (SELECT value FROM meta WHERE key='marker')`).
+		Scan(&version, &marker)
+	cp.Close() // before removing backups: Windows does not delete an open file
+	if err != nil || version != "20" || marker != "kept" {
 		t.Fatalf("backup is at v%s with marker %q, %v; want v20 with its data", version, marker, err)
 	}
 
 	at(20)
-	os.RemoveAll(backups)
+	if err := os.RemoveAll(backups); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(backups, []byte("a file, not a directory"), 0o600); err != nil {
 		t.Fatal(err)
 	}

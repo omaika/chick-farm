@@ -56,7 +56,7 @@ func fakePaseo(log string, args []string) int {
 func TestSetupPaseoInstallRemove(t *testing.T) {
 	dir, bin := t.TempDir(), t.TempDir()
 	exe, _ := os.Executable()
-	os.Symlink(exe, filepath.Join(bin, "paseo"))
+	os.Symlink(exe, filepath.Join(bin, "paseo"+exeSuffix))
 	t.Setenv("PATH", bin)
 	log := filepath.Join(t.TempDir(), "argv")
 	t.Setenv("PIGGERY_FAKE_PASEO", log)

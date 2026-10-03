@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -19,14 +20,14 @@ func TestAdminTeamUpOnCleanHome(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(bin, "--admin", "team", "up", "p2p", "--cwd", repo)
-	cmd.Env = append(os.Environ(), "HOME="+home)
+	cmd.Env = append(os.Environ(), "HOME="+home, "USERPROFILE="+home)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("team up on clean home: %v\n%s", err, out)
 	}
 	// The shipped supervisor-executor manifest uses instructions_file, which core rejects: the CLI must
 	// inline it (relative to the manifest) before team up.
 	cmd = exec.Command(bin, "--admin", "team", "up", "supervisor-executor", "--cwd", repo)
-	cmd.Env = append(os.Environ(), "HOME="+home)
+	cmd.Env = append(os.Environ(), "HOME="+home, "USERPROFILE="+home)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("team up supervisor-executor: %v\n%s", err, out)
 	}
@@ -36,19 +37,25 @@ func TestAdminTeamUpOnCleanHome(t *testing.T) {
 func buildWithHome(t *testing.T) (bin, home string) {
 	t.Helper()
 	bin = filepath.Join(t.TempDir(), "piggery")
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
+	}
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}
 	// Short HOME: unix socket paths are limited to 104 bytes on macOS.
-	home, err := os.MkdirTemp("/tmp", "pg")
+	home, err := os.MkdirTemp(shortTemp(), "pg")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		exec.Command("pkill", "-TERM", "-f", "^"+bin+" serve$").Run()
-		sock := filepath.Join(home, ".piggery", "piggery.sock")
-		for i := 0; i < 100; i++ {
-			if _, err := os.Stat(sock); os.IsNotExist(err) {
+		// shutdown returns once the daemon has stopped; on Windows its binary stays locked until
+		// the process is gone, so wait for that before the temp dir is removed.
+		cmd := exec.Command(bin, "--admin", "shutdown")
+		cmd.Env = append(os.Environ(), "HOME="+home, "USERPROFILE="+home)
+		cmd.Run()
+		for i := 0; i < 250; i++ {
+			if err := os.Remove(bin); err == nil || os.IsNotExist(err) {
 				break
 			}
 			time.Sleep(20 * time.Millisecond)
@@ -70,7 +77,7 @@ func TestMCPThroughMain(t *testing.T) {
 	run := func(env []string, stdin string, args ...string) []byte {
 		t.Helper()
 		cmd := exec.Command(bin, args...)
-		cmd.Env = append(append(os.Environ(), "HOME="+home), env...)
+		cmd.Env = append(append(os.Environ(), "HOME="+home, "USERPROFILE="+home), env...)
 		cmd.Stdin = strings.NewReader(stdin)
 		out, err := cmd.Output()
 		if err != nil {
@@ -113,7 +120,7 @@ func TestRestart(t *testing.T) {
 	run := func(args ...string) string {
 		t.Helper()
 		cmd := exec.Command(bin, args...)
-		cmd.Env = append(os.Environ(), "HOME="+home)
+		cmd.Env = append(os.Environ(), "HOME="+home, "USERPROFILE="+home)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("%v: %v\n%s", args, err, out)

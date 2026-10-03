@@ -84,6 +84,7 @@ func TestClaudeHelperProcess(t *testing.T) {
 }
 
 func newClaudeDriver(t *testing.T, prof ClaudeProfile, opts ...Options) (*Driver, string) {
+	skipOnWindows(t, "fakes a program with a sh script")
 	t.Helper()
 	dir := t.TempDir()
 	// Claude's flags come first: a wrapper puts the test binary's own flags before them.
@@ -130,6 +131,7 @@ func probeIn(t *testing.T, d *Driver, pid string) []map[string]any {
 func TestClaudeStart(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"mcpServers":{"mine":{"command":"m"},"old":{"command":"o"}},
 		"projects":{"/x":{"mcpServers":{"proj":{"command":"p"}}}}}`), 0o600)
 	ended := make(chan string, 4)

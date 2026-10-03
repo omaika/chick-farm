@@ -175,6 +175,7 @@ func TestSetupOutdatedUpdatesWhatIsInstalled(t *testing.T) {
 	t.Cleanup(func() { codexHooksList = old })
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
 	t.Setenv("PATH", t.TempDir())
