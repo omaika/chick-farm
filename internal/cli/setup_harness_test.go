@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,12 +16,18 @@ import (
 )
 
 // TestMain lets this test binary stand in for `claude` (fakeClaude) and `paseo` (fakePaseo) when
-// a test puts it on PATH under that name.
+// a test puts it on PATH under that name, and refuses to be the daemon.
 func TestMain(m *testing.M) {
-	if log := os.Getenv("PIGGERY_FAKE_CLAUDE"); log != "" && filepath.Base(os.Args[0]) == "claude" {
+	// A test whose command autostarts the daemon runs `<this binary> serve`: that must not run the
+	// whole suite again (which autostarts again, and so on).
+	if len(os.Args) > 1 && os.Args[1] == "serve" {
+		fmt.Fprintln(os.Stderr, "piggery serve: the cli test binary is no daemon")
+		os.Exit(1)
+	}
+	if log := os.Getenv("PIGGERY_FAKE_CLAUDE"); log != "" && strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe") == "claude" {
 		os.Exit(fakeClaude(log, os.Args[1:]))
 	}
-	if log := os.Getenv("PIGGERY_FAKE_PASEO"); log != "" && filepath.Base(os.Args[0]) == "paseo" {
+	if log := os.Getenv("PIGGERY_FAKE_PASEO"); log != "" && strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe") == "paseo" {
 		os.Exit(fakePaseo(log, os.Args[1:]))
 	}
 	os.Exit(m.Run())
@@ -128,7 +135,7 @@ func TestSetupClaudeInstallRemove(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	exe, _ := os.Executable()
-	os.Symlink(exe, filepath.Join(bin, "claude"))
+	os.Symlink(exe, filepath.Join(bin, "claude"+exeSuffix))
 	t.Setenv("PATH", bin)
 	log := filepath.Join(home, "argv")
 	t.Setenv("PIGGERY_FAKE_CLAUDE", log)

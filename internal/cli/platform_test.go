@@ -5,6 +5,9 @@ import (
 	"testing"
 )
 
+// exeSuffix is what a program's file name needs for PATH to find it.
+var exeSuffix = map[bool]string{true: ".exe"}[runtime.GOOS == "windows"]
+
 // shortTemp is where a test's piggery home goes: /tmp keeps unix socket paths short (macOS limits
 // them); Windows has no /tmp, and its daemon pipe name does not depend on the path's length.
 func shortTemp() string {

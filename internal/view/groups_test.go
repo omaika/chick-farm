@@ -1,6 +1,7 @@
 package view
 
 import (
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -44,6 +45,7 @@ func TestGroupByDir(t *testing.T) {
 	order := func(gs []DirGroup) (dirs []string, units map[string][]string) {
 		units = map[string][]string{}
 		for _, g := range gs {
+			g.Dir = filepath.ToSlash(g.Dir) // a root is cleaned: \p on Windows
 			dirs = append(dirs, g.Dir)
 			for _, u := range g.Units {
 				id := ""
