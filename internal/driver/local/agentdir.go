@@ -13,13 +13,15 @@ import (
 	"gopkg.in/yaml.v3"
 
 	ompext "github.com/sting8k/piggery/extensions/omp"
+	"github.com/sting8k/piggery/internal/platform"
 )
 
 // A worker runs pi with the human's pi setup minus a blacklist: its
 // PI_CODING_AGENT_DIR is a directory built for the run from the human's agent dir. Every entry
 // is a symlink except settings.json (a filtered copy) and extensions/ (a real directory of
 // symlinks to the entries not blacklisted). A run's directory is new and only removed once
-// the run has ended: a live worker's directory is never modified.
+// the run has ended: a live worker's directory is never modified. On Windows without the right
+// to make symlinks, a directory entry is a junction and a file a hard link (platform.Link).
 //
 // Path and source rules follow pi 0.87 (utils/paths.js normalizePath, package-manager.js
 // isLocalPath). omp (a pi fork) reads the same variable and layout; its settings are config.yml
@@ -253,7 +255,7 @@ func buildAgentDirWith(src, dst, home string, bl blacklist, settings []settingsF
 		if filtered[e.Name()] {
 			continue
 		}
-		if err := os.Symlink(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+		if err := platform.Link(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
 			return err
 		}
 	}
@@ -266,7 +268,7 @@ func buildAgentDirWith(src, dst, home string, bl blacklist, settings []settingsF
 		if bl.blocked(p) || e.Name() == "piggery" { // `piggery setup pi`'s copy: the worker has its -e
 			continue
 		}
-		if err := os.Symlink(p, filepath.Join(dst, "extensions", e.Name())); err != nil {
+		if err := platform.Link(p, filepath.Join(dst, "extensions", e.Name())); err != nil {
 			return err
 		}
 	}

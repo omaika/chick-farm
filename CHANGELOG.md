@@ -10,6 +10,9 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
 - On Windows the daemon listens on a named pipe (`\\.\pipe\piggery-<hash of ~/.piggery>`, this
   user only) instead of `~/.piggery/piggery.sock`; peer checks, the singleton lock and the process
   table use the Windows APIs instead of `ps` and `flock`.
+- A pi or omp worker's agent dir links to your own entries with symlinks; on Windows without the
+  right to make them (no Developer Mode, not elevated) a folder is linked as a junction and a file
+  as a hard link instead.
 - Windows has no SIGTERM: stopping a worker closes its stdin, waits, then ends its whole process
   tree.
 - Notify hooks on Windows are the `.exe`, `.com`, `.cmd`, `.bat` and `.ps1` files of
