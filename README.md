@@ -46,14 +46,14 @@ piggery is installed in it.
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/sting8k/piggery/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/omaika/chick-farm/main/install.sh | sh
 piggery setup pi       # and/or: claude, codex, omp, dsh
 ```
 
 On Windows (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/sting8k/piggery/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/omaika/chick-farm/main/install.ps1 | iex
 piggery setup pi
 ```
 
@@ -61,7 +61,7 @@ The script picks the build for your OS and CPU (Linux, macOS or Windows, amd64 o
 against the release's `checksums.txt`, and installs it in `~/.local/bin` (`PIGGERY_INSTALL_DIR` to
 change it, `PIGGERY_VERSION=v0.3.0` for a given release). By hand: download `piggery-<os>-<arch>`
 (`darwin-arm64`, `darwin-amd64`, `linux-amd64`, `linux-arm64`, `windows-amd64.exe`,
-`windows-arm64.exe`) from the [latest release](https://github.com/sting8k/piggery/releases/latest),
+`windows-arm64.exe`) from the [latest release](https://github.com/omaika/chick-farm/releases/latest),
 `chmod +x` it (not on Windows) and put it on your PATH.
 
 On Windows the daemon listens on a named pipe instead of `~/.piggery/piggery.sock`, and

@@ -29,7 +29,7 @@ var Version = "dev"
 
 // latestRelease is the GitHub API URL of the newest release (the release workflow names its
 // assets: piggery-<os>-<arch> and checksums.txt).
-const latestRelease = "https://api.github.com/repos/sting8k/piggery/releases/latest"
+const latestRelease = "https://api.github.com/repos/omaika/chick-farm/releases/latest"
 
 // maxDownload bounds a downloaded binary or checksums file.
 const maxDownload = 256 << 20
