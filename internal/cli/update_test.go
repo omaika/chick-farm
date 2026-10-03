@@ -83,7 +83,7 @@ func TestUpdate(t *testing.T) {
 	if st, _ := os.Lstat(link); st.Mode()&os.ModeSymlink == 0 {
 		t.Fatal("the symlink was replaced instead of the binary it points to")
 	}
-	if st, _ := os.Stat(exe); st.Mode().Perm() != 0o750 {
+	if st, _ := os.Stat(exe); unixModes && st.Mode().Perm() != 0o750 {
 		t.Fatalf("mode %v; want the old binary's 0750", st.Mode().Perm())
 	}
 }

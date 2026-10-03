@@ -178,6 +178,9 @@ func Kill(pid int, sig syscall.Signal) error {
 	return windows.TerminateProcess(h, 1)
 }
 
+// Signals is false: Windows has no SIGTERM, ending a process there is always by force.
+const Signals = false
+
 // OwnGroup is 0: no process groups.
 func OwnGroup() int { return 0 }
 

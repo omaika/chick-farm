@@ -21,6 +21,12 @@ func write(t *testing.T, p, s string) {
 	}
 }
 
+// jsonString is s as a JSON string (a Windows path has backslashes).
+func jsonString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}
+
 // A worker agent dir: entries are symlinks to the human's, extensions/ keeps only what is not
 // blacklisted, settings.json is filtered. One source of each kind: npm, git, a local path (by
 // basename, relative, ~), an extensions/ entry, the always-blacklisted, and piggery's own
@@ -43,8 +49,8 @@ func TestBuildAgentDir(t *testing.T) {
 	}
 	write(t, filepath.Join(src, "settings.json"), `{
 		"theme": "x",
-		"extensions": ["rel/ext-x.ts", "~/tools/pi-askuserquestion.ts", "`+filepath.Join(repo, "extensions", "pi")+`",
-			"`+filepath.Join(home, "wt", "pi", "index.ts")+`"],
+		"extensions": ["rel/ext-x.ts", "~/tools/pi-askuserquestion.ts", `+jsonString(filepath.Join(repo, "extensions", "pi"))+`,
+			`+jsonString(filepath.Join(home, "wt", "pi", "index.ts"))+`],
 		"packages": ["npm:@scope/blocked-npm@1.2.3", "git:github.com/u/blocked-git@v1", {"source": "npm:ok-pkg", "skills": ["s"]},
 			"./local/blocked-local", "github.com/u/kept-local"]}`)
 
@@ -138,7 +144,7 @@ func TestBuildOmpAgentDir(t *testing.T) {
 	yml := "theme: dark\nmcp:\n  enableProjectConfig: true\nextensions:\n  - rel/ext-x.ts\n  - " +
 		filepath.Join(home, "wt", "omp", "index.ts") + "\n  - " + filepath.Join(home, "tools", "a.ts") + "\n"
 	write(t, filepath.Join(src, "config.yml"), yml)
-	write(t, filepath.Join(src, "settings.json"), `{"extensions": ["rel/ext-y.ts", "`+filepath.Join(home, "tools", "a.ts")+`"]}`)
+	write(t, filepath.Join(src, "settings.json"), `{"extensions": ["rel/ext-y.ts", `+jsonString(filepath.Join(home, "tools", "a.ts"))+`]}`)
 	before, _ := os.ReadFile(filepath.Join(src, "config.yml"))
 
 	dst := filepath.Join(home, "gen", "r1")

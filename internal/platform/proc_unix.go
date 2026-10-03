@@ -100,6 +100,9 @@ func Info(ctx context.Context, pid int) (start int64, command string, alive bool
 // Kill is kill(2): a negative pid is a process group.
 func Kill(pid int, sig syscall.Signal) error { return syscall.Kill(pid, sig) }
 
+// Signals: a process can be asked to exit (SIGTERM) before it is forced.
+const Signals = true
+
 // OwnGroup is this process's group.
 func OwnGroup() int { return syscall.Getpgrp() }
 

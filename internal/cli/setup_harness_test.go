@@ -351,7 +351,7 @@ func TestSetupDshInstallRemove(t *testing.T) {
 		!strings.Contains(string(got), local.DshEntry(dir)) || !strings.Contains(string(got), "sessions: '"+local.DshSessionsDir(dir)+"'") {
 		t.Fatalf("home patch after install: %v\n%s", err, got)
 	}
-	if st, _ := os.Stat(patch); st.Mode().Perm() != 0o644 {
+	if st, _ := os.Stat(patch); unixModes && st.Mode().Perm() != 0o644 {
 		t.Fatalf("mode %v: the user's file mode changed", st.Mode())
 	}
 	if msg, _ := installDsh(dir); !strings.Contains(msg, "already") {

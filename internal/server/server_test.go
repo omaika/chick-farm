@@ -76,7 +76,7 @@ func TestServerAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, p := range []string{server.AdminTokenPath(dir), server.SocketPath(dir)} {
-		if fi, err := os.Stat(p); err != nil || fi.Mode().Perm() != 0o600 {
+		if fi, err := os.Stat(p); unixModes && (err != nil || fi.Mode().Perm() != 0o600) {
 			t.Fatalf("%s: want mode 0600, got %v %v", p, fi.Mode(), err)
 		}
 	}
@@ -394,7 +394,7 @@ func TestSupersededConnectionIsStale(t *testing.T) {
 // (driver OnExit -> core.ProcessExited) without anyone calling stop.
 func TestSpawnedWorkerExitEndsGone(t *testing.T) {
 	dir := startServer(t)
-	prof := []byte(`{"cmd": "/bin/sh", "args": ["-c", "sleep 0.3", "sh"]}`)
+	prof := fakeWorker(t, "sleep")
 	if err := os.MkdirAll(filepath.Join(dir, "harness"), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +459,7 @@ func TestGracefulStopEndsWorkersAndRecordsExits(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "harness"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	prof := []byte(`{"cmd": "/bin/sh", "args": ["-c", "cat >/dev/null", "sh"]}`) // exits when stdin closes
+	prof := fakeWorker(t, "cat") // exits when stdin closes
 	if err := os.WriteFile(filepath.Join(dir, "harness", "pi.json"), prof, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -715,6 +715,7 @@ func TestWakeGoesToTheNewestConnection(t *testing.T) {
 // 'codex exec …'` execs in place, so the nested harness is the worker's child and its hook a grandchild
 // (live, Codex worker). The clients are this test binary run again as TestWorkerPeerClient.
 func TestNestedHarnessCannotSpeakForTheWorker(t *testing.T) {
+	skipOnWindows(t, "the worker is a sh script")
 	dir := startServer(t)
 	out := t.TempDir()
 	t.Setenv("PGTEST_DIR", dir)

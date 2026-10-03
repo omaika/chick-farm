@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -137,6 +138,9 @@ type worker struct {
 
 	done chan struct{} // closed when the process has been reaped
 	exit core.Exit
+	// forced: the driver ended the worker by force. Where there are no signals (Windows) its
+	// exit is a plain code, so this is what records it as SIGKILL.
+	forced atomic.Bool
 }
 
 // Builtin is every built-in runtime driver over dir, one per harness.
@@ -304,6 +308,9 @@ func (d *Driver) Start(_ context.Context, s core.Spec) (core.Proc, error) {
 	go func() {
 		err := cmd.Wait()
 		w.exit = exitOf(cmd, err)
+		if w.forced.Load() && !platform.Signals && w.exit.Signal == "" {
+			w.exit.Code, w.exit.Signal = -1, "SIGKILL"
+		}
 		w.inMu.Lock()
 		w.stdin.Close()
 		w.inMu.Unlock()
@@ -390,21 +397,31 @@ func (d *Driver) Kill(_ context.Context, participantID string) (core.Exit, error
 // so the harness shuts its children and extensions down itself, wait up to grace (less when it
 // exits), then SIGKILL the group and whatever of the tree is still there, and its new children.
 // It returns once the worker has exited. The group is ours only while the leader is not reaped.
+// Windows has no SIGTERM (ending a process there is SIGKILL), so there it forces at once.
 func (d *Driver) terminate(w *worker, grace time.Duration, seen []proc) {
 	tree := treeBelow(w.pgid, !w.exited(), seen)
-	if !w.exited() {
+	if !w.exited() && platform.Signals {
 		d.kill(-w.pgid, syscall.SIGTERM)
 		w.wait(grace)
 	}
 	tree = treeBelow(w.pgid, !w.exited(), tree)
-	d.signalTree(w.pgid, !w.exited(), tree, syscall.SIGKILL)
+	d.force(w, tree)
 	<-w.done
 }
 
 // killNow SIGKILLs the worker's group and every descendant at once, for a run that has failed
 // (it cannot wait: the reaper waits for the caller).
 func (d *Driver) killNow(w *worker) {
-	d.signalTree(w.pgid, !w.exited(), treeBelow(w.pgid, !w.exited(), nil), syscall.SIGKILL)
+	d.force(w, treeBelow(w.pgid, !w.exited(), nil))
+}
+
+// force SIGKILLs the worker's group (while it lives) and tree.
+func (d *Driver) force(w *worker, tree []proc) {
+	alive := !w.exited()
+	if alive {
+		w.forced.Store(true)
+	}
+	d.signalTree(w.pgid, alive, tree, syscall.SIGKILL)
 }
 
 // Abort asks the harness to cancel the current turn; the worker stays alive.

@@ -66,6 +66,9 @@ func (d *Driver) KillVerified(ctx context.Context, p core.Proc) (core.Exit, erro
 		sig  syscall.Signal
 		wait time.Duration
 	}{{syscall.SIGTERM, d.opts.TermWait}, {syscall.SIGKILL, 5 * time.Second}} {
+		if step.sig == syscall.SIGTERM && !platform.Signals {
+			continue // no SIGTERM on Windows
+		}
 		st, err := d.Inspect(ctx, p)
 		if err != nil {
 			return core.Exit{}, err

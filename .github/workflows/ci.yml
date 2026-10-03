@@ -49,8 +49,7 @@ jobs:
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
-  # Windows: build and vet must pass. The test suite is still being ported (many tests drive
-  # POSIX shells, signals and file modes), so its failures are reported without failing CI.
+  # Windows: the same checks. Tests that drive POSIX shells skip themselves there.
   windows:
     name: Windows
     if: github.event_name != 'workflow_dispatch' || inputs.os != 'unix'
@@ -69,7 +68,5 @@ jobs:
       - run: go build ./...
       - run: go vet ./...
       - run: go test ./...
-        continue-on-error: true
       - run: node --test extensions/pi/*.test.mjs
         shell: bash
-        continue-on-error: true

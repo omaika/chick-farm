@@ -421,6 +421,7 @@ func TestAbortAndSetModel(t *testing.T) {
 // Kill asks with SIGTERM: a worker that exits on it returns at once, well before the grace, with
 // its own exit (not SIGKILL's), and what it left behind is swept.
 func TestKillAsksBeforeForcing(t *testing.T) {
+	skipOnWindows(t, "no SIGTERM to ask with")
 	d, dir := newDriver(t, "polite", Options{KillWait: time.Minute})
 	ctx := context.Background()
 	if _, err := d.Start(ctx, core.Spec{ParticipantID: "p7", RunID: "r7", Token: "tok", Cwd: dir, HarnessRef: "sess-7"}); err != nil {

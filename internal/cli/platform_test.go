@@ -24,3 +24,6 @@ func skipOnWindows(t testing.TB, why string) {
 		t.Skip("not on Windows: " + why)
 	}
 }
+
+// unixModes: file permission bits mean something (not on Windows, where a file is 0666 or 0444).
+var unixModes = runtime.GOOS != "windows"
