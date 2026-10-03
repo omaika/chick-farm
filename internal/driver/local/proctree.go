@@ -1,10 +1,9 @@
 package local
 
 import (
-	"os/exec"
-	"strconv"
-	"strings"
 	"syscall"
+
+	"github.com/sting8k/piggery/internal/platform"
 )
 
 // A harness runs its tools in child processes, often each in a process group of its own (pi's
@@ -13,32 +12,18 @@ import (
 // worker's pid down, and every member is signalled: its group when the group's leader is in the
 // tree too, otherwise the pid alone.
 
-// proc is one row of the process table. start is `ps lstart` verbatim: a pid is the same process
-// only while its start is too.
+// proc is one row of the process table (platform.Processes): a pid is the same process only while
+// its start is too.
 type proc struct {
 	pid, ppid, pgid int
 	start           string
 }
 
-// processTable is every process (`ps -A`, on macOS and Linux); nil when it cannot be read.
+// processTable is every process; nil when it cannot be read.
 func processTable() []proc {
-	out, err := exec.Command("ps", "-A", "-o", "pid=,ppid=,pgid=,lstart=").Output()
-	if err != nil {
-		return nil
-	}
 	var rows []proc
-	for _, line := range strings.Split(string(out), "\n") {
-		f := strings.Fields(line)
-		if len(f) < 8 {
-			continue
-		}
-		pid, e1 := strconv.Atoi(f[0])
-		ppid, e2 := strconv.Atoi(f[1])
-		pgid, e3 := strconv.Atoi(f[2])
-		if e1 != nil || e2 != nil || e3 != nil {
-			continue
-		}
-		rows = append(rows, proc{pid, ppid, pgid, strings.Join(f[3:], " ")})
+	for _, p := range platform.Processes() {
+		rows = append(rows, proc{p.PID, p.PPID, p.PGID, p.Start})
 	}
 	return rows
 }
@@ -86,7 +71,7 @@ func (d *Driver) signalTree(pgid int, group bool, tree []proc, sig syscall.Signa
 	if group {
 		d.kill(-pgid, sig)
 	}
-	own := syscall.Getpgrp()
+	own := platform.OwnGroup()
 	leader := map[int]bool{}
 	for _, p := range tree {
 		leader[p.pid] = true

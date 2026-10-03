@@ -50,12 +50,23 @@ curl -fsSL https://raw.githubusercontent.com/sting8k/piggery/main/install.sh | s
 piggery setup pi       # and/or: claude, codex, omp, dsh
 ```
 
-The script picks the build for your OS and CPU (Linux or macOS, amd64 or arm64), checks it against
-the release's `checksums.txt`, and installs it in `~/.local/bin` (`PIGGERY_INSTALL_DIR` to change it,
-`PIGGERY_VERSION=v0.3.0` for a given release). By hand: download `piggery-<os>-<arch>` (`darwin-arm64`,
-`darwin-amd64`, `linux-amd64`, `linux-arm64`) from the
-[latest release](https://github.com/sting8k/piggery/releases/latest), `chmod +x` it and put it on
-your PATH.
+On Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/sting8k/piggery/main/install.ps1 | iex
+piggery setup pi
+```
+
+The script picks the build for your OS and CPU (Linux, macOS or Windows, amd64 or arm64), checks it
+against the release's `checksums.txt`, and installs it in `~/.local/bin` (`PIGGERY_INSTALL_DIR` to
+change it, `PIGGERY_VERSION=v0.3.0` for a given release). By hand: download `piggery-<os>-<arch>`
+(`darwin-arm64`, `darwin-amd64`, `linux-amd64`, `linux-arm64`, `windows-amd64.exe`,
+`windows-arm64.exe`) from the [latest release](https://github.com/sting8k/piggery/releases/latest),
+`chmod +x` it (not on Windows) and put it on your PATH.
+
+On Windows the daemon listens on a named pipe instead of `~/.piggery/piggery.sock`, and
+`piggery setup notify add` is not available (its hooks are sh scripts): put your own `.cmd`, `.ps1`
+or `.exe` hook in `~/.piggery/hooks/notify.d/`.
 
 Using [Paseo](https://paseo.sh)? `piggery setup paseo` adds a Piggery view (the same as
 `piggery top`) to the app. Turn on plugins in Paseo's settings once.

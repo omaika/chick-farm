@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/sting8k/piggery/internal/core"
+	"github.com/sting8k/piggery/internal/platform"
 )
 
 const fixture = "../../../testdata/fixtures/pi-0.87.1-rpc-glm-5.3-flash.jsonl"
@@ -107,7 +108,7 @@ func TestHelperProcess(t *testing.T) {
 		term := make(chan os.Signal, 1)
 		signal.Notify(term, syscall.SIGTERM)
 		own := exec.Command("sleep", "60")
-		own.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		platform.NewGroup(own)
 		if err := own.Start(); err != nil {
 			os.Exit(3)
 		}
@@ -121,7 +122,7 @@ func TestHelperProcess(t *testing.T) {
 			os.Exit(3)
 		}
 		own := exec.Command("sleep", "60")
-		own.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		platform.NewGroup(own)
 		if err := own.Start(); err != nil {
 			os.Exit(3)
 		}
@@ -268,11 +269,11 @@ func expectGone(t *testing.T, child map[string]any, what string) {
 	for _, k := range []string{"pid", "own"} {
 		pid := int(child[k].(float64))
 		for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) {
-			if err := syscall.Kill(pid, 0); errors.Is(err, syscall.ESRCH) {
+			if !platform.Alive(pid) {
 				break
 			}
 			if time.Now().After(deadline) {
-				syscall.Kill(pid, syscall.SIGKILL)
+				platform.Kill(pid, syscall.SIGKILL)
 				t.Fatalf("grandchild %d (%s) survived %s", pid, k, what)
 			}
 		}
@@ -282,7 +283,10 @@ func expectGone(t *testing.T, child map[string]any, what string) {
 func TestInspectAndKillVerified(t *testing.T) {
 	d, dir := newDriver(t, "replay", Options{TermWait: 2 * time.Second})
 	var signals []syscall.Signal
-	d.kill = func(pid int, sig syscall.Signal) error { signals = append(signals, sig); return syscall.Kill(pid, sig) }
+	d.kill = func(pid int, sig syscall.Signal) error {
+		signals = append(signals, sig)
+		return platform.Kill(pid, sig)
+	}
 	ctx := context.Background()
 	proc, err := d.Start(ctx, core.Spec{ParticipantID: "p4", RunID: "r4", Token: "tok", Cwd: dir, HarnessRef: "sess-4"})
 	if err != nil {

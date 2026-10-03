@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
 	"slices"
@@ -18,6 +17,7 @@ import (
 
 	piext "github.com/sting8k/piggery/extensions/pi"
 	"github.com/sting8k/piggery/internal/core"
+	"github.com/sting8k/piggery/internal/platform"
 	"github.com/sting8k/piggery/internal/proto"
 )
 
@@ -246,7 +246,7 @@ func (s *mcpServer) nudge() {
 	}
 	b.Write(msg)
 	b.WriteByte('\n')
-	c, err := net.DialTimeout("unix", s.sock, 2*time.Second)
+	c, err := platform.Dial(s.sock, 2*time.Second)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "piggery mcp: wake: %v\n", err)
 		return

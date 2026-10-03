@@ -1,11 +1,37 @@
 // JSON-lines client for the piggery daemon socket. No pi imports.
 // Responses carry the request `id`; server pushes carry `event` and no `id`.
+import { createHash } from "node:crypto";
+import { existsSync, readdirSync } from "node:fs";
 import net from "node:net";
+import { join, resolve } from "node:path";
+
+const PIPES = "\\\\.\\pipe\\";
+
+/**
+ * The daemon's socket for dir (~/.piggery): dir/piggery.sock, or on Windows (Node has no unix
+ * sockets there) a named pipe named after a hash of the lowercased dir, as the daemon names it.
+ * @param {string} dir
+ */
+export function socketPath(dir) {
+	if (process.platform !== "win32") return join(dir, "piggery.sock");
+	return PIPES + "piggery-" + createHash("sha256").update(resolve(dir).toLowerCase()).digest("hex").slice(0, 16);
+}
+
+/** Whether the daemon's socket (or pipe) exists; the daemon may still be gone. */
+export function socketExists(p) {
+	if (!p.startsWith(PIPES)) return existsSync(p);
+	const name = p.slice(PIPES.length).toLowerCase();
+	try {
+		return readdirSync(PIPES).some((n) => n.toLowerCase() === name);
+	} catch {
+		return false;
+	}
+}
 
 export class Client {
 	/**
 	 * @param {object} o
-	 * @param {string} o.path unix socket path
+	 * @param {string} o.path the daemon socket (socketPath)
 	 * @param {{id: string, token: string}} o.auth
 	 * @param {(frame: object) => void} o.onPush
 	 * @param {() => Promise<void>} o.onConnect runs first on every connection (identify); calls made

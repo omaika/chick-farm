@@ -4,22 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/sting8k/piggery/internal/core"
+	"github.com/sting8k/piggery/internal/platform"
 )
 
 // Recovery. A recorded worker is identified by pid + OS start time
-// (same source and resolution as Start: `ps lstart`, 1s) + program name. The full argv is not
+// (platform.Info, the same source and resolution as Start) + program name. The full argv is not
 // comparable: pi rewrites process.title, so the OS shows `node …/bin/pi <args>` right after exec
 // and only `pi` a moment later. The program name is the basename of the first command token, or
-// of the second when an interpreter runs a script (node <script>).
+// of the second when an interpreter runs a script (node <script>); on Windows also of the third
+// (`cmd.exe /c <npm shim>`).
 
 // Inspect reports whether p's process is dead, still ours, or a reused pid.
 func (d *Driver) Inspect(ctx context.Context, p core.Proc) (core.ProcState, error) {
@@ -29,7 +28,7 @@ func (d *Driver) Inspect(ctx context.Context, p core.Proc) (core.ProcState, erro
 	if p.StartTime == 0 || len(p.Cmdline) == 0 {
 		return "", errors.New("recorded process has no start time or cmdline: cannot verify it")
 	}
-	start, command, alive, err := psInfo(ctx, p.PID)
+	start, command, alive, err := platform.Info(ctx, p.PID)
 	if err != nil {
 		return "", err
 	}
@@ -42,32 +41,15 @@ func (d *Driver) Inspect(ctx context.Context, p core.Proc) (core.ProcState, erro
 	return core.ProcOurs, nil
 }
 
-// psInfo reads the OS start time (unix ms) and command of pid. alive=false when ps reports no
-// such process; err when the process table could not be read.
-func psInfo(ctx context.Context, pid int) (start int64, command string, alive bool, err error) {
-	out, err := exec.CommandContext(ctx, "ps", "-ww", "-o", "lstart=,command=", "-p", strconv.Itoa(pid)).Output()
-	var ee *exec.ExitError
-	if errors.As(err, &ee) && ee.ExitCode() == 1 && len(strings.TrimSpace(string(out))) == 0 {
-		return 0, "", false, nil // ps: no such process
-	}
-	if err != nil {
-		return 0, "", false, fmt.Errorf("read process table: %w", err)
-	}
-	f := strings.Fields(string(out))
-	if len(f) < 6 {
-		return 0, "", false, fmt.Errorf("read process table: unexpected ps output %q", out)
-	}
-	t, err := time.ParseInLocation(lstartLayout, strings.Join(f[:5], " "), time.Local)
-	if err != nil {
-		return 0, "", false, fmt.Errorf("read process table: %w", err)
-	}
-	return t.UnixMilli(), strings.Join(f[5:], " "), true, nil
-}
-
 func sameProgram(command, recorded string) bool {
-	name := filepath.Base(recorded)
+	name := programName(recorded)
 	tok := strings.Fields(command)
-	return len(tok) > 0 && (filepath.Base(tok[0]) == name || (len(tok) > 1 && filepath.Base(tok[1]) == name))
+	for i := 0; i < len(tok) && i < programTokens; i++ {
+		if programName(tok[i]) == name {
+			return true
+		}
+	}
+	return false
 }
 
 // KillVerified is terminate for a worker that is not our child (after a daemon restart): SIGTERM

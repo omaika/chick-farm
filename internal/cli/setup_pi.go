@@ -280,7 +280,7 @@ func piStatus(dir, self string) harnessState {
 func piggeryOnPath(self string) []problem {
 	if p, err := exec.LookPath("piggery"); err != nil {
 		return []problem{{"`piggery` is not on PATH: the extension cannot start the daemon", "put " + self + " on PATH as piggery"}}
-	} else if r, _ := filepath.EvalSymlinks(p); r != self {
+	} else if !samePath(p, self) {
 		return []problem{{fmt.Sprintf("`piggery` on PATH is %s, not %s: the extension starts that one", p, self), "put " + self + " first on PATH as piggery"}}
 	}
 	return nil

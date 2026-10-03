@@ -48,7 +48,7 @@ The model sees the tools with a `piggery_` prefix in pi, omp and dsh (`piggery_s
 `mcp__piggery__send` in Claude Code and Codex; manifests and the CLI use the short names.
 
 Environment: `PIGGERY_DISABLED=1` makes an adapter inert (a session that must not join);
-`PIGGERY_INSTALL_DIR` and `PIGGERY_VERSION` steer `install.sh`.
+`PIGGERY_INSTALL_DIR` and `PIGGERY_VERSION` steer `install.sh` and `install.ps1`.
 
 ## config.yaml
 
@@ -150,7 +150,7 @@ harness's version and problems, each with its fix, and `vN < vM` for an outdated
 ## Notify hooks
 
 piggery tells your hooks what only it knows about a team's mail. Every regular executable file in
-`~/.piggery/hooks/notify.d/` runs, in parallel, for each notice, with one JSON line on stdin: `id,
+`~/.piggery/hooks/notify.d/` (on Windows: every `.exe`, `.com`, `.cmd`, `.bat` or `.ps1` file) runs, in parallel, for each notice, with one JSON line on stdin: `id,
 from_label, team, gate, dir, kind, body, created_at`. `gate` is the team's gate (for a solo, the
 session itself), `dir` the team's root (a solo's directory), `body` one short sentence. A hook that
 runs over 10 seconds is killed with its child processes; a failure is a line in `serve.log` with

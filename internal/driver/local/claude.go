@@ -262,9 +262,6 @@ func (c *claudeCodec) writeSettings(s core.Spec, blacklist []string) (string, er
 	return path, nil
 }
 
-// ShellQuote quotes s for a POSIX shell (hook commands).
-func ShellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
-
 // started checks the run's effort against the model's supported levels (Claude silently runs
 // a lower level). It sends no prompt: core delivers the worker's task as its first batch.
 func (c *claudeCodec) started(ctx context.Context, w *worker, l launch) error {

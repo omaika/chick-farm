@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -182,7 +183,10 @@ func samePath(a, b string) bool {
 	ra, err1 := filepath.EvalSymlinks(a)
 	rb, err2 := filepath.EvalSymlinks(b)
 	if err1 != nil || err2 != nil {
-		return filepath.Clean(a) == filepath.Clean(b)
+		ra, rb = filepath.Clean(a), filepath.Clean(b)
+	}
+	if runtime.GOOS == "windows" { // case-insensitive paths
+		return strings.EqualFold(ra, rb)
 	}
 	return ra == rb
 }

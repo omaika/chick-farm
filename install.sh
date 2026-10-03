@@ -18,7 +18,8 @@ fail() {
 case "$(uname -s)" in
 Linux) os=linux ;;
 Darwin) os=darwin ;;
-*) fail "unsupported OS $(uname -s): builds exist for Linux and macOS" ;;
+MINGW* | MSYS* | CYGWIN*) fail "on Windows, run in PowerShell: irm https://raw.githubusercontent.com/sting8k/piggery/main/install.ps1 | iex" ;;
+*) fail "unsupported OS $(uname -s): builds exist for Linux, macOS and Windows" ;;
 esac
 case "$(uname -m)" in
 x86_64 | amd64) arch=amd64 ;;

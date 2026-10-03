@@ -10,12 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
 	"github.com/sting8k/piggery/internal/cli"
 	"github.com/sting8k/piggery/internal/core"
+	"github.com/sting8k/piggery/internal/platform"
 	"github.com/sting8k/piggery/internal/proto"
 	"github.com/sting8k/piggery/internal/server"
 	"github.com/sting8k/piggery/internal/store"
@@ -89,7 +89,7 @@ func TestServerAuth(t *testing.T) {
 	team, alice, bob := p2pTeam(t, dir)
 
 	// A wrong participant token is unauthorized even when a valid admin token rides along.
-	raw, err := net.Dial("unix", server.SocketPath(dir))
+	raw, err := platform.Dial(server.SocketPath(dir), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestIdentifiedConnectionWakeAndGone(t *testing.T) {
 	dir := startServer(t)
 	_, alice, bob := p2pTeam(t, dir)
 
-	raw, err := net.Dial("unix", server.SocketPath(dir))
+	raw, err := platform.Dial(server.SocketPath(dir), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +228,7 @@ type rawConn struct {
 
 func rawDial(t *testing.T, dir string, j core.JoinResult) *rawConn {
 	t.Helper()
-	c, err := net.Dial("unix", server.SocketPath(dir))
+	c, err := platform.Dial(server.SocketPath(dir), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +266,7 @@ func (r *rawConn) call(verb string, args any) proto.Response {
 func TestTeamDownPushesRetire(t *testing.T) {
 	dir := startServer(t)
 	team, _, bob := p2pTeam(t, dir)
-	raw, err := net.Dial("unix", server.SocketPath(dir))
+	raw, err := platform.Dial(server.SocketPath(dir), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +304,7 @@ func TestGateCloseRetiresTheOthers(t *testing.T) {
 	dir := startServer(t)
 	_, alice, bob := p2pTeam(t, dir) // alice joined first: the gate
 	open := func(j core.JoinResult) (net.Conn, *json.Decoder) {
-		raw, err := net.Dial("unix", server.SocketPath(dir))
+		raw, err := platform.Dial(server.SocketPath(dir), 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -476,8 +476,8 @@ func TestGracefulStopEndsWorkersAndRecordsExits(t *testing.T) {
 	if code := cli.Main(dir, []string{"-a", "shutdown"}, &out, &errOut); code != 0 {
 		t.Fatalf("shutdown: exit %d: %s%s", code, out.String(), errOut.String())
 	}
-	if _, err := os.Stat(server.SocketPath(dir)); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("socket after stop returned: %v", err)
+	if platform.SocketExists(server.SocketPath(dir)) {
+		t.Fatalf("socket after stop returned: %s", server.SocketPath(dir))
 	}
 	stop() // Run has returned; this collects its result
 	db, err := store.Open(server.DBPath(dir))
@@ -490,8 +490,8 @@ func TestGracefulStopEndsWorkersAndRecordsExits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
-		t.Fatalf("worker pid %d after stop: %v; want no such process", pid, err)
+	if platform.Alive(pid) {
+		t.Fatalf("worker pid %d after stop: want no such process", pid)
 	}
 
 	stop = runServer(t, dir)

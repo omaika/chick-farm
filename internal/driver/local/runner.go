@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/sting8k/piggery/internal/core"
+	"github.com/sting8k/piggery/internal/platform"
 )
 
 var _ core.RuntimeDriver = (*Driver)(nil)
@@ -113,7 +114,7 @@ type Driver struct {
 	mu    sync.Mutex
 	procs map[string]*worker // by participant id; kept after exit so tail still works
 
-	kill func(pid int, sig syscall.Signal) error // syscall.Kill; replaced in tests
+	kill func(pid int, sig syscall.Signal) error // platform.Kill; replaced in tests
 }
 
 type worker struct {
@@ -162,7 +163,7 @@ func newWith(dir string, opts Options, c codec) *Driver {
 	if opts.KillWait == 0 {
 		opts.KillWait = 2 * time.Second
 	}
-	return &Driver{dir: dir, opts: opts, codec: c, procs: map[string]*worker{}, kill: syscall.Kill}
+	return &Driver{dir: dir, opts: opts, codec: c, procs: map[string]*worker{}, kill: platform.Kill}
 }
 
 // LogPath is the normalized stdout log of one run.
@@ -283,7 +284,7 @@ func (d *Driver) Start(_ context.Context, s core.Spec) (core.Proc, error) {
 	cmd.Dir = s.Cwd
 	cmd.Env = workerEnv(os.Environ(), s, l.env)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = inR, outW, stderr
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	platform.NewGroup(cmd)
 	err = cmd.Start()
 	inR.Close()
 	outW.Close()

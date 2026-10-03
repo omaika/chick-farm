@@ -1,4 +1,4 @@
-package server
+package platform
 
 import (
 	"errors"
@@ -7,8 +7,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// peerPID is the pid of the process at the other end of a unix socket (LOCAL_PEERPID).
-func peerPID(nc net.Conn) (int, error) {
+// PeerPID is the pid of the process at the other end of a unix socket (LOCAL_PEERPID).
+func PeerPID(nc net.Conn) (int, error) {
 	uc, ok := nc.(*net.UnixConn)
 	if !ok {
 		return 0, errors.New("not a unix socket")
