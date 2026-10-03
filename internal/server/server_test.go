@@ -25,7 +25,7 @@ import (
 // startServer runs a daemon in a short temp dir (unix socket paths are length-limited on macOS).
 func startServer(t *testing.T) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("/tmp", "pg")
+	dir, err := os.MkdirTemp(shortTemp(), "pg")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -451,7 +451,7 @@ func runServer(t *testing.T, dir string) (stop func()) {
 // so the next start has nothing to reconcile for them. The stop is `piggery -a shutdown`: it returns
 // once the daemon is gone and no worker is left.
 func TestGracefulStopEndsWorkersAndRecordsExits(t *testing.T) {
-	dir, err := os.MkdirTemp("/tmp", "pg")
+	dir, err := os.MkdirTemp(shortTemp(), "pg")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -525,6 +525,7 @@ func TestGracefulStopEndsWorkersAndRecordsExits(t *testing.T) {
 // that outlives the timeout is killed with its children and does not hold the other back; a file in
 // the old hooks/notify is not run; with no hook nothing happens.
 func TestNotifyHooksRunInParallel(t *testing.T) {
+	skipOnWindows(t, "fakes a program with a sh script")
 	defer server.SetHookTimeout(time.Second)()
 	dir := startServer(t)
 	// leaveTeam: a solo founds a team and founds another: the first has nobody live left.

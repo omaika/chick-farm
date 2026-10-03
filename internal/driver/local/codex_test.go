@@ -84,6 +84,7 @@ func TestCodexHelperProcess(t *testing.T) {
 }
 
 func newCodexDriver(t *testing.T, prof CodexProfile) (*Driver, string) {
+	skipOnWindows(t, "fakes a program with a sh script")
 	t.Helper()
 	dir := t.TempDir()
 	wrapper := filepath.Join(dir, "codex")

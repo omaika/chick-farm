@@ -126,6 +126,7 @@ func changes(t *testing.T, log string) []string {
 func TestSetupClaudeInstallRemove(t *testing.T) {
 	home, bin := t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	exe, _ := os.Executable()
 	os.Symlink(exe, filepath.Join(bin, "claude"))
 	t.Setenv("PATH", bin)
@@ -187,6 +188,7 @@ func TestSetupClaudeInstallRemove(t *testing.T) {
 func TestSetupPiInstallRemove(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("PI_CODING_AGENT_DIR", "")
 	t.Setenv("PATH", t.TempDir())
 	dir := filepath.Join(home, ".piggery")
@@ -274,6 +276,7 @@ func TestSetupPiInstallRemove(t *testing.T) {
 func TestSetupOmpInstallRemove(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("PI_CODING_AGENT_DIR", "")
 	t.Setenv("PI_CONFIG_DIR", "")
 	t.Setenv("PATH", t.TempDir())
@@ -324,6 +327,7 @@ func TestSetupOmpInstallRemove(t *testing.T) {
 func TestSetupDshInstallRemove(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("DSH_HOME", "")
 	t.Setenv("PATH", t.TempDir())
 	dir := filepath.Join(home, ".piggery")

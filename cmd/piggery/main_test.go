@@ -40,7 +40,7 @@ func buildWithHome(t *testing.T) (bin, home string) {
 		t.Fatalf("build: %v\n%s", err, out)
 	}
 	// Short HOME: unix socket paths are limited to 104 bytes on macOS.
-	home, err := os.MkdirTemp("/tmp", "pg")
+	home, err := os.MkdirTemp(shortTemp(), "pg")
 	if err != nil {
 		t.Fatal(err)
 	}

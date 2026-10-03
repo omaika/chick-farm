@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -81,6 +82,9 @@ func TestIntegrationVersionsFollowWhatIsInstalled(t *testing.T) {
 		{"codex", 1, "c914fad6023c"},
 		{"paseo", 3, "93664ce8a897"},
 	} {
+		if runtime.GOOS == "windows" && (want.name == "claude" || want.name == "codex") {
+			continue // their hook commands quote the binary's path the Windows way (local.ShellQuote)
+		}
 		if got := digestOf(trees[want.name]()); got != want.digest || local.IntegrationVersion(want.name) != want.version {
 			t.Errorf("changed %s: bump IntegrationVersion and update this digest (now v%d %s; table has v%d %s)",
 				want.name, local.IntegrationVersion(want.name), got, want.version, want.digest)
@@ -119,6 +123,7 @@ func digestOf(files map[string][]byte) string {
 func TestClaudeLeftoverFilesAreNotAnInstall(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	dir := filepath.Join(home, ".piggery")
 	if err := writeClaudePlugin(filepath.Join(dir, "claude"), "/x/piggery"); err != nil {

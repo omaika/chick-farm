@@ -152,7 +152,9 @@ func newDriver(t *testing.T, mode string, opts Options) (*Driver, string) {
 	}
 	t.Setenv("PGDRV_FIXTURE", abs)
 	t.Setenv("PIGGERY_DISABLED", "1") // must not reach the worker
-	t.Setenv("HOME", t.TempDir())     // no human pi setup: the worker agent dir is built from nothing
+	home := t.TempDir()
+	t.Setenv("HOME", home)        // no human pi setup: the worker agent dir is built from nothing
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("PI_CODING_AGENT_DIR", "")
 	return New(dir, opts), dir
 }

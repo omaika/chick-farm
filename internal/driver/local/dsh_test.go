@@ -74,6 +74,7 @@ func TestDshHelperProcess(t *testing.T) {
 }
 
 func newDshDriver(t *testing.T, mode string, prof DshProfile, opts ...Options) (*Driver, string) {
+	skipOnWindows(t, "fakes a program with a sh script")
 	t.Helper()
 	dir := t.TempDir()
 	wrapper := filepath.Join(t.TempDir(), "dsh") // not in dir: DshExtDir(dir) is the plugin copy
