@@ -3,12 +3,22 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # A manual run on main releases its head as the given tag, creating the tag when it is missing.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to release (v1.2.3); CHANGELOG.md needs its section
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -87,7 +97,7 @@ jobs:
           ext=""
           if [ "$GOOS" = windows ]; then ext=.exe; fi
           go build -trimpath \
-            -ldflags "-s -w -X github.com/sting8k/piggery/internal/cli.Version=${GITHUB_REF_NAME}" \
+            -ldflags "-s -w -X github.com/sting8k/piggery/internal/cli.Version=${TAG}" \
             -o "dist/piggery-${GOOS}-${GOARCH}${ext}" ./cmd/piggery
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -115,14 +125,26 @@ jobs:
       - name: Release notes
         # The tag's section of CHANGELOG.md: from "## <tag> " up to the next "## ".
         run: |
-          awk -v h="## ${GITHUB_REF_NAME} " 'index($0, h) == 1 {f = 1; next} f && /^## / {exit} f && (s || NF) {s = 1; print}' CHANGELOG.md > notes.md
-          test -s notes.md || { echo "CHANGELOG.md has no section for ${GITHUB_REF_NAME}"; exit 1; }
+          awk -v h="## ${TAG} " 'index($0, h) == 1 {f = 1; next} f && /^## / {exit} f && (s || NF) {s = 1; print}' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "CHANGELOG.md has no section for ${TAG}"; exit 1; }
       - name: Checksums
         run: cd dist && sha256sum piggery-* > checksums.txt
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist/piggery-*
+      - name: Tag (manual run)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "${GITHUB_REF}" = refs/heads/main || { echo "a manual release runs on main"; exit 1; }
+          case "${TAG}" in v[0-9]*) ;; *) echo "tag ${TAG}: want v<version>"; exit 1;; esac
+          if sha=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" --jq .object.sha 2>/dev/null); then
+            test "$sha" = "${GITHUB_SHA}" || { echo "${TAG} exists at $sha, not ${GITHUB_SHA}"; exit 1; }
+          else
+            gh api "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${TAG}" -f sha="${GITHUB_SHA}"
+          fi
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --title "${GITHUB_REF_NAME}" --notes-file notes.md --verify-tag
+        run: gh release create "${TAG}" dist/* --repo "${GITHUB_REPOSITORY}" --title "${TAG}" --notes-file notes.md --verify-tag
