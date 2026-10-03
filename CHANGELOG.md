@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- A Claude or Codex session whose locale writes dates in another language (e.g. `LANG=pt_BR.UTF-8`)
+  is found again: piggery reads `ps` in the C locale. Before, its MCP server listed no tools and its
+  hooks did nothing.
 - Windows: pi and omp workers start without Developer Mode. A worker's agent dir links to your
   own entries with symlinks, which Windows only allows with Developer Mode on or elevated; without
   that, a folder is now linked as a junction and a file as a hard link.
