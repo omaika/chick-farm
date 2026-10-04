@@ -41,8 +41,11 @@ roles:
 routing:
   - {from: supervisor, to: executor, allow: true, cc: []}
   - {from: executor, to: supervisor, allow: true, cc: []}
-timers:
+timers:                  # one condition each; escalate_to: told again when the incident outlasts the notice
   - {on: executor, notify: reports_to, silent_for: 20m}
+  - {on: executor, notify: reports_to, idle_with_task_for: 10m}
+  - {on: executor, notify: reports_to, max_rework: 3, escalate_to: notify}
+  - {on: supervisor, notify: self, unanswered_for: 30m, escalate_to: notify}
 limits:                  # none: no limit
   depth: 2                 # how deep spawned_by chains may go
   concurrency: 10           # live workers at once

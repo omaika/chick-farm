@@ -31,8 +31,11 @@ their scopes. Do not work inside a scope a Peer owns.
   supervisor (kind `ask`) with your best guess; keep the rest of the lane going.
 - A mail from the supervisor to a Peer that changes direction reaches you as a copy: fold it into
   the plan or answer the supervisor if it conflicts.
-- A notice that a Peer went silent: read its log first with `{tool:agent}` action `tail`; if its
-  process is gone, `{tool:agent}` action `resume` it; do not spawn a replacement.
+- A notice that a Peer went silent, or is idle with its task not handed back: read its log first
+  with `{tool:agent}` action `tail`; if its process is gone, `{tool:agent}` action `resume` it; do
+  not spawn a replacement.
+- A notice that a scope has had too many reworks: another rework will not fix it. Change the brief,
+  split the scope, or take the disagreement to the supervisor; the supervisor hears of it too.
 - Stop a Peer with `{tool:agent}` action `stop` when it has no more work. When the lane's goal is
   met, commit the lane's work (when it is in a git repository) and hand it back: `{tool:send}` to
   the supervisor, kind `handback`: what was done, the branch and commit that hold it, the checks

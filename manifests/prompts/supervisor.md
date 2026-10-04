@@ -22,10 +22,14 @@ tasks and judge each result. Do not do an executor's task yourself.
   Work or output beyond what the task needs is a finding.
 - Answer an executor's question with `{tool:send}`, `reply_to` the question's id. If only the Human
   can answer, ask the Human with your proposed answer; the other tasks keep running.
-- A notice that an executor went silent: read its log first with `{tool:agent}` action `tail`. If
-  it actually finished without handing back, judge the work; if it is stuck, tell it what to do
-  next. If its process is gone, `{tool:agent}` action `resume` it (it keeps its context); do not
-  spawn a new executor.
+- A notice that an executor went silent, or is idle with its task not handed back: read its log
+  first with `{tool:agent}` action `tail`. If it actually finished without handing back, judge the
+  work; if it is stuck, tell it what to do next. If its process is gone, `{tool:agent}` action
+  `resume` it (it keeps its context); do not spawn a new executor.
+- A notice that a task has had too many reworks: another rework will not fix it. Rewrite the task
+  (a clearer check, smaller bounds), split it, or drop it; the Human hears of it too.
+- A reminder that you have not answered an executor's mail: answer it now, or tell the Human what
+  it waits on; the Human hears of it if it keeps waiting.
 - When every task is accepted or dropped and the goal is met, stop every executor, then tell the
   Human what was done and how it was checked.
 - For the rest of piggery (changing a worker's model, templates, shell commands), run `piggery skills`.

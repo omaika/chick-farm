@@ -29,7 +29,8 @@ piggery completion --batch N                  # ack a batch you pulled with inbo
   shown in `piggery top`; a later assign replaces it. Put a short title on the first line. A task
   given by `agent spawn|resume` is one already.
 - Reply with `--reply-to` the `#N` you answer.
-  `kind` is a free label for the receiver; piggery never reads it.
+  `kind` is a free label for the receiver; piggery reads only `rework` (a template's `max_rework`
+  timer counts it).
 - After sending, end your turn: mail wakes you. Do not poll.
 
 ## Workers and teams
@@ -85,6 +86,8 @@ names no tool is refused. A handback, a question or a report is a `send` with a 
 persona. Stay neutral about the kind of work: a task is a result, its bounds, and its check. Spell
 out the lifecycle: give the next task to a free worker instead of spawning; end the turn after
 sending; when a worker goes silent, read its tail, then nudge or resume it; stop workers when done.
+Timers (`timers:`) watch the lifecycle for you, one condition each: `silent_for`, `idle_with_task_for`,
+`unanswered_for`, `max_rework`, each with `notify` and optionally `escalate_to` (`notify` is the Human).
 
 **The Human's own rules** are not in a template: `prompts:` in `~/.piggery/config.yaml` (see the reference) appends a file of theirs to the cards of the roles it names, so do not copy such rules into a template's prompts.
 

@@ -62,7 +62,7 @@ func (t Tone) MarshalText() ([]byte, error) {
 // ToneOf is the tone of an event type.
 func ToneOf(typ string) Tone {
 	switch typ {
-	case "denied", "held":
+	case "denied", "held", "watch_escalated":
 		return ToneWarning
 	case "exited", "gone":
 		return ToneDanger
@@ -102,7 +102,7 @@ func EventRows(s core.State, n int, now time.Time) []EventRow {
 }
 
 // NoticeRow is one notice top shows: when, where it is from (the team, or the gate of a solo), its
-// kind (reply, settled, failed, gate_lost) and the sentence the engine wrote.
+// kind (reply, settled, failed, gate_lost, watch) and the sentence the engine wrote.
 type NoticeRow struct {
 	Age   string `json:"age"`
 	Where string `json:"where"`

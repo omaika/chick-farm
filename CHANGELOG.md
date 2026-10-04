@@ -5,6 +5,13 @@
 After upgrading, run `piggery setup --outdated`: the pi and omp integrations are now 5 and dsh 6
 (the `agent` tool's description changed).
 
+- Timers have more conditions than `silent_for`, one per rule: `idle_with_task_for` (a member idle
+  while its task waits on it), `unanswered_for` (a teammate's mail left without anything back) and
+  `max_rework` (more `rework` mails than that on one task). `notify: self` reminds the member
+  itself, and `escalate_to` (a role, `reports_to`, `self` or `notify`, the Human) is told once when
+  the incident still holds `escalate_after` later (default: the condition's duration; `max_rework`:
+  at the next rework). An escalation to `notify` is a notice of kind `watch`. The built-in
+  templates use them.
 - `found` without a template founds `supervisor-executor`, not `p2p`.
 - Templates have `when_to_use` and `when_not_to_use` lines; `agent action=templates` lists them so
   an agent picks a template by criteria, not by its summary alone. The built-ins have them.

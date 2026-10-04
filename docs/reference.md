@@ -105,7 +105,7 @@ refused with the reason when the team is brought up.
 | `roles.<r>.spawn.model`, `.thinking` | `inherit` | This role's worker model and thinking level |
 | `roles.<r>.spawn.allow_tools` | `[]` | Tools the harness profile turns off that this role keeps |
 | `routing[]` | none = all denied | `{from, to, allow, cc}`; the first rule matching a sender and receiver decides; `cc` roles get a copy; a `to: notify` line is ignored with a warning (`piggery check` shows it), since only piggery writes to `notify` |
-| `timers[]` | `[]` | `{on: <role>, silent_for: <duration>, notify: <role\|reports_to>}`: one notice when a working member has no turn end for that long; `notify: notify` is ignored |
+| `timers[]` | `[]` | `{on: <role>, <condition>, notify: <role\|reports_to\|self>, escalate_to: <role\|reports_to\|self\|notify>, escalate_after: <duration>}`: one notice from `engine` per incident, to `notify` (`self`: the member itself; `notify: notify` is ignored). One condition per rule: `silent_for: D` (working with no turn end for D), `idle_with_task_for: D` (idle for D while its task, its latest mail with `op: assign`, waits on it: since the task, the last mail between it and the task's sender is the sender's), `unanswered_for: D` (a live teammate's mail to it has had nothing back to that teammate for D), `max_rework: N` (more than N mails of kind `rework` to it since its task). `escalate_to` (optional) is told once when the same incident still holds `escalate_after` after the notice (default: the condition's D; `max_rework`: at the next rework, no `escalate_after`); `escalate_to: notify` is a notice of kind `watch` to the Human's notify hooks |
 | `limits.depth` | none | How deep spawn chains may go |
 | `limits.concurrency` | none | Live workers at once (the built-ins set 10) |
 | `limits.messages_per_participant_per_minute` | none | Flood guard; a mail over it is held until you `release` it |
@@ -166,9 +166,10 @@ file) is not run; `piggery check` warns about it. `setup notify` writes and list
 | `settled` | the gate sent its last message and no member is working or has mail waiting |
 | `failed` | the gate's turn on team mail failed: that mail waits for new mail to be given again |
 | `gate_lost` | a team has no live member left (its mail and workers wait for the next gate) |
+| `watch` | a timer escalated to `notify`: a member's incident (idle with a task, unanswered mail, too many reworks…) outlasted the notice to its team |
 
 Only the engine writes to `notify`: an agent's send to it is refused, and a `to: notify` routing
-line or `notify: notify` timer is ignored with a warning.
+line or `notify: notify` timer is ignored with a warning; `escalate_to: notify` is the engine's own.
 
 ## Notes per harness
 

@@ -860,7 +860,7 @@ func (m *topModel) band(width, height, sw int, beside bool, now time.Time) []str
 // least h lines tall, or, folded, one line with the newest.
 func (m *topModel) noticesBox(w, height int, now time.Time, h int) []string {
 	rows := view.NoticeRows(m.ps.Notices, now)
-	warn := func(r view.NoticeRow) bool { return r.Kind == "failed" || r.Kind == "gate_lost" }
+	warn := func(r view.NoticeRow) bool { return r.Kind == "failed" || r.Kind == "gate_lost" || r.Kind == "watch" }
 	if !m.notices { // folded: one line of text, indented like the key lines
 		line := " " + stTitle.Render("● Notices")
 		if len(rows) > 0 {
