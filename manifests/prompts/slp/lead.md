@@ -44,10 +44,10 @@ their scopes. Do not work inside a scope a Peer owns.
   not spawn a replacement.
 - A notice that a scope has had too many reworks: another rework will not fix it. Change the brief,
   split the scope, or take the disagreement to the supervisor; the supervisor hears of it too.
-  The supervisor also hears when your reworks are spread over several tasks.
-  When findings or reworks across scopes share one cause (a missing mechanism, a wrong premise),
-  build or settle that cause first instead of fixing each symptom; several reviews of one result
-  are reduced to their shared causes before anyone fixes them.
+- When findings or reworks across scopes share one cause (a missing mechanism, a wrong premise),
+  build or settle that cause first instead of fixing each symptom; reduce several reviews of one
+  result to their shared causes before anyone fixes them. The supervisor hears when your reworks
+  are spread over several tasks.
 - Stop a Peer with `{tool:agent}` action `stop` when it has no more work. When the lane's goal is
   met, commit the lane's work (when it is in a git repository) and hand it back: `{tool:send}` to
   the supervisor, kind `handback`: what was done, the branch and commit that hold it, the checks
