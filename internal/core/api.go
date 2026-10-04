@@ -135,7 +135,7 @@ type JoinResult struct {
 
 type LogArgs struct {
 	After int64  `json:"after,omitempty"` // events with seq > After
-	Team  string `json:"team,omitempty"`
+	Team  string `json:"team,omitempty"` // a team id or name
 	Limit int    `json:"limit,omitempty"` // default 200
 }
 

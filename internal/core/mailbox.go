@@ -8,8 +8,8 @@ import (
 // MailArgs is `mail` (admin, read-only): the messages a participant sent or received, or a team's,
 // or every one, newest first. Reading acks nothing: a participant's inbox is its own.
 type MailArgs struct {
-	Participant string `json:"participant,omitempty"` // its mail, sent and received
-	Team        string `json:"team,omitempty"`        // a team id: the messages in it
+	Participant string `json:"participant,omitempty"` // its mail, sent and received (id, or name)
+	Team        string `json:"team,omitempty"`        // a team (id, or name): the messages in it
 	Before      int64  `json:"before,omitempty"`      // only messages older than this #seq (the next page)
 	Limit       int    `json:"limit,omitempty"`       // default mailLimit, at most mailMax
 }
@@ -55,10 +55,11 @@ func (e *Engine) Mail(ctx context.Context, a MailArgs) (MailResult, error) {
 	var where []string
 	var args []any
 	if a.Participant != "" {
-		where, args = append(where, "(m.from_id=? OR m.to_id=?)"), append(args, a.Participant, a.Participant)
+		where = append(where, "(m.from_id=? OR m.to_id=? OR pf.name=? OR pt.name=?)")
+		args = append(args, a.Participant, a.Participant, a.Participant, a.Participant)
 	}
 	if a.Team != "" {
-		where, args = append(where, "m.team_id=?"), append(args, a.Team)
+		where, args = append(where, "(m.team_id=? OR t.name=?)"), append(args, a.Team, a.Team)
 	}
 	if a.Before > 0 {
 		where, args = append(where, "m.seq<?"), append(args, a.Before)

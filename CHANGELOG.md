@@ -21,6 +21,8 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
   or `aborted`, with the branch, what it went into and a note. Each is an event; `ps`/`top` show a
   team's merges in its Overview, and a team with an open conflict is flagged until it is recorded
   resolved or aborted. The `slp` prompts ask the Lead and the Supervisor to record theirs.
+- `piggery mail`: a team's or a participant's messages, newest first, with kind and state; it acks
+  nothing. `log --team` takes a team's name too.
 - `roles.<r>.skills` in a template: `inherit` (the default), `[]` or a list of skill names. The
   role's card tells its participant to use only those, `top` shows them in the Overview, and the
   templates list names them. It is told, not enforced: the harness still offers its other skills.

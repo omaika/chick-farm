@@ -171,6 +171,8 @@ func (e *env) root() *cobra.Command {
 			"piggery web --open", authAdmin, e.web),
 		e.cmd("tail <worker> [-n N] [-f|--view] [--team T]", "A worker's rpc log, readable (--json raw)", grpWatch,
 			"piggery tail w1 -n 50 -f", authAdmin, e.tail),
+		e.cmd("mail [--team T] [--participant X] [--before SEQ] [--limit N]", "Messages, newest first, with kind and state; nothing is acked", grpWatch,
+			"piggery mail --team demo\npiggery mail --participant w1 --limit 100", authAdmin, e.mailCmd),
 		e.cmd("log [--after SEQ] [--team T] [--limit N]", "Decisions and lifecycle events", grpWatch,
 			"piggery log --after 100 --limit 50", authAdmin, e.logCmd),
 		e.cmd("abort <x> [--team T]", "Cancel x's current turn; it stays alive", grpStepIn,

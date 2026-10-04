@@ -285,7 +285,7 @@ func (e *env) logCmd(args []string) error {
 	fs := e.flags("log")
 	var a core.LogArgs
 	fs.Int64Var(&a.After, "after", 0, "events with seq > after")
-	fs.StringVar(&a.Team, "team", "", "team id")
+	fs.StringVar(&a.Team, "team", "", "team (id or name)")
 	fs.IntVar(&a.Limit, "limit", 0, "max events")
 	pos, err := parse(fs, args)
 	if err != nil {
@@ -295,6 +295,51 @@ func (e *env) logCmd(args []string) error {
 		return fmt.Errorf("%w: log takes no arguments", errUsage)
 	}
 	return do(e, proto.VerbLog, a, func(w io.Writer, evs []core.Event) { e.printEvents(evs) })
+}
+
+// mailCmd lists messages as the operator reads them (the admin verb mail): nothing is acked.
+func (e *env) mailCmd(args []string) error {
+	fs := e.flags("mail")
+	var a core.MailArgs
+	fs.StringVar(&a.Team, "team", "", "a team (id or name): its messages")
+	fs.StringVar(&a.Participant, "participant", "", "a participant (id or name): its mail, sent and received")
+	fs.Int64Var(&a.Before, "before", 0, "only messages older than this #seq (the next page)")
+	fs.IntVar(&a.Limit, "limit", 0, "max messages (default 50, at most 200)")
+	pos, err := parse(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 0 {
+		return fmt.Errorf("%w: mail takes no arguments", errUsage)
+	}
+	return do(e, proto.VerbMail, a, func(w io.Writer, r core.MailResult) {
+		for _, m := range r.Messages {
+			tags := strings.TrimSpace(strings.Join([]string{m.Kind, m.Op}, " "))
+			if m.ReplyTo != 0 {
+				tags = strings.TrimSpace(fmt.Sprintf("%s re #%d", tags, m.ReplyTo))
+			}
+			if tags != "" {
+				tags = " [" + tags + "]"
+			}
+			fmt.Fprintf(w, "#%d %s %s -> %s%s %s: %s\n", m.Seq, clock(m.CreatedAt), m.From, m.To, tags, m.State, firstLine(m.Body))
+		}
+		if r.More && len(r.Messages) > 0 {
+			fmt.Fprintf(w, "(older: --before %d)\n", r.Messages[len(r.Messages)-1].Seq)
+		}
+	})
+}
+
+// firstLine is s's first non-empty line, at most 120 runes.
+func firstLine(s string) string {
+	for _, l := range strings.Split(s, "\n") {
+		if l = strings.TrimSpace(l); l != "" {
+			if r := []rune(l); len(r) > 120 {
+				return string(r[:119]) + "…"
+			}
+			return l
+		}
+	}
+	return ""
 }
 
 func (e *env) printEvents(evs []core.Event) {
