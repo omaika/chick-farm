@@ -23,6 +23,12 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
   resolved or aborted. The `slp` prompts ask the Lead and the Supervisor to record theirs.
 - `piggery mail`: a team's or a participant's messages, newest first, with kind and state; it acks
   nothing. `log --team` takes a team's name too.
+- Eleven skills for templates' roles, in `manifests/skills/`, adapted from seatworks: `test-first`,
+  `diagnosing-bugs`, `security-check`, `test-proof-debt-audit` for workers; `planning-lanes`,
+  `council`, `repo-refresh` for a Lead; `grilling`, `pre-mortem`, `architecture-premise-audit`,
+  `retrospective` for a supervisor. They use piggery's mail and board, and keep the team's records at
+  the repository's root (`CONTEXT.md`, `NOTEBOOK.md`, `notes/`). Not yet installed with the
+  templates or loaded by workers.
 - `roles.<r>.skills` in a template: `inherit` (the default), `[]` or a list of skill names. The
   role's card tells its participant to use only those, `top` shows them in the Overview, and the
   templates list names them. It is told, not enforced: the harness still offers its other skills.
