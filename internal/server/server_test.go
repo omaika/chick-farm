@@ -526,7 +526,10 @@ func TestGracefulStopEndsWorkersAndRecordsExits(t *testing.T) {
 // the old hooks/notify is not run; with no hook nothing happens.
 func TestNotifyHooksRunInParallel(t *testing.T) {
 	skipOnWindows(t, "fakes a program with a sh script")
-	defer server.SetHookTimeout(time.Second)()
+	// The timeout leaves room for a loaded machine: macOS may hold the first exec of a script just
+	// written for a second or more, which a 1s timeout turned into a killed fast hook.
+	const timeout = 4 * time.Second
+	defer server.SetHookTimeout(timeout)()
 	dir := startServer(t)
 	// leaveTeam: a solo founds a team and founds another: the first has nobody live left.
 	leaveTeam := func(ref string) {
@@ -563,13 +566,13 @@ func TestNotifyHooksRunInParallel(t *testing.T) {
 	leaveTeam("sess-2")
 	var b []byte
 	start := time.Now()
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+	for deadline := time.Now().Add(timeout + 2*time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 		if b, _ = os.ReadFile(out); len(b) > 0 && b[len(b)-1] == '\n' {
 			break
 		}
 	}
-	if since := time.Since(start); since > 900*time.Millisecond {
-		t.Fatalf("the fast hook ran after %v: it waited for the slow one (timeout 1s)", since)
+	if since := time.Since(start); since > timeout-500*time.Millisecond {
+		t.Fatalf("the fast hook ran after %v: it waited for the slow one (timeout %v)", since, timeout)
 	}
 	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
 	var got core.NotifyMail
@@ -580,7 +583,7 @@ func TestNotifyHooksRunInParallel(t *testing.T) {
 		!strings.Contains(got.Body, "no live member") || got.CreatedAt == 0 {
 		t.Fatalf("hook got %+v", got)
 	}
-	time.Sleep(1500 * time.Millisecond) // past the timeout: the slow hook's children are gone, so it never gets to touch its file
+	time.Sleep(time.Until(start.Add(timeout + 1500*time.Millisecond))) // past the timeout: the slow hook's children are gone, so it never gets to touch its file
 	for _, f := range []string{slowDone, legacyOut} {
 		if _, err := os.Stat(f); err == nil {
 			t.Fatalf("%s exists: the slow hook outlived its timeout, or hooks/notify or a non-executable file ran", filepath.Base(f))
