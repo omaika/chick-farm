@@ -25,6 +25,8 @@ type txn struct {
 	solo manifest // the implicit manifest of a solo (teamManifest(""))
 	// shared is the Engine's sharedPrompts.
 	shared func(template, role string) string
+	// skill is the Engine's skillFiles.
+	skill func(template, name string) (file, when string, ok bool)
 }
 
 // evt is one row for the events table.
@@ -51,7 +53,7 @@ func (e *Engine) inTx(ctx context.Context, fn func(t *txn) error) error {
 			return internal(err)
 		}
 		defer tx.Rollback()
-		if err := fn(&txn{Tx: tx, ctx: ctx, now: now, solo: e.soloManifest(), shared: e.sharedPrompts}); err != nil {
+		if err := fn(&txn{Tx: tx, ctx: ctx, now: now, solo: e.soloManifest(), shared: e.sharedPrompts, skill: e.skillFiles}); err != nil {
 			return err
 		}
 		if err := tx.Commit(); err != nil {
@@ -238,7 +240,7 @@ type roleSpec struct {
 	CanSpawn         []string `yaml:"can_spawn"`
 	CanPin           bool     `yaml:"can_pin"`
 	CanSetCwd        bool     `yaml:"can_set_cwd"` // spawn with a cwd other than the spawner's
-	// Skills are the harness skills the role uses (skills.go); for now told in its card, not enforced.
+	// Skills are piggery's skills the role uses (skills.go): its card names each and its file.
 	Skills skillList `yaml:"skills"`
 	Spawn  struct {
 		Harness  string `yaml:"harness"` // the worker's harness; "" or inherit = the main session's

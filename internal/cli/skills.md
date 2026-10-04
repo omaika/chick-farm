@@ -37,6 +37,20 @@ piggery completion --batch N                  # ack a batch you pulled with inbo
   timer counts it).
 - After sending, end your turn: mail wakes you. Do not poll.
 
+**Timers** (from a worker's shell, which carries `PIGGERY_ID`; a session the Human opened has no
+timer tool yet):
+
+```sh
+piggery watch add --to N --in 30m [--every 1h] "text"   # a mail from engine to N then (and every hour; at least 1m apart)
+piggery watch list                                       # your active timers, with their ids
+piggery watch rm <id>                                    # stop one of yours
+```
+
+- `N` is anyone your routing lets you mail. Use a timer for a check-in or a deadline on long
+  work, not to poll: handbacks, questions and notices already wake you.
+- Remove a repeating timer once the work it watches is closed. One whose target left the team
+  stops by itself; a repeating one skips a member that is gone (stopped) until it is back.
+
 ## Workers and teams
 
 ```sh
@@ -82,7 +96,7 @@ set `template:` to that name. You do not bring it up: the Human does, or asks a 
 [docs/reference.md](https://github.com/sting8k/piggery/blob/main/docs/reference.md#manifest)):
 `template` (required, the name), `summary`, `when_to_use`, `when_not_to_use`, `auto_join_role`,
 `roles.<role>` (`instructions` or `instructions_file`, `tools`, `can_spawn`, `can_pin`, `can_set_cwd`, `skills`, `spawn`), `routing`, `limits`, `timers`.
-The tools are `send`, `inbox`, `who`, `agent` and no others. The first routing rule matching (sender's
+`skills` lists piggery's skills for the role (in the template's `skills/<name>/SKILL.md` or `~/.piggery/skills/`): its card names each, when to use it and the file to read. The tools are `send`, `inbox`, `who`, `agent` and no others. The first routing rule matching (sender's
 role, recipient's role) decides and none means denied; mail
 between teams ignores routing. A role that can spawn needs `limits.depth` and `limits.concurrency`.
 

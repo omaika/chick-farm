@@ -187,7 +187,7 @@ func Describe(s core.State, sel string, stats map[string]Stats, now time.Time) D
 		if mem.LastTurnEnd > 0 {
 			d.Facts = append(d.Facts, Fact{Label: "last turn", Value: Ago(mem.LastTurnEnd, now) + " ago"})
 		}
-		if sk := mem.Skills; sk != nil { // told in its card, not enforced
+		if sk := mem.Skills; sk != nil { // named in its card, with the file to read
 			v := "none (prompt only)"
 			if len(*sk) > 0 {
 				v = strings.Join(*sk, ", ") + " (prompt only)"

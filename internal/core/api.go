@@ -46,12 +46,13 @@ type Engine struct {
 	db             *sql.DB
 	now            func() time.Time
 	notify         func(participantID string)
-	runtimes       []RuntimeDriver                    // one per harness (WithRuntime)
-	defaultHarness string                             // workers of no role or session harness (WithDefaultHarness)
-	allowedRoots   []string                           // spawn cwd bounds besides the team root (WithAllowedRoots)
-	sharedPrompts  func(template, role string) string // the Human's text for a role card (WithSharedPrompts)
-	minProtocol    int                                // lowest adapter protocol version identify accepts
-	deliverLocks   sync.Map                           // participant id -> *sync.Mutex: one delivery at a time, in batch order
+	runtimes       []RuntimeDriver                                          // one per harness (WithRuntime)
+	defaultHarness string                                                   // workers of no role or session harness (WithDefaultHarness)
+	allowedRoots   []string                                                 // spawn cwd bounds besides the team root (WithAllowedRoots)
+	sharedPrompts  func(template, role string) string                       // the Human's text for a role card (WithSharedPrompts)
+	skillFiles     func(template, name string) (file, when string, ok bool) // a listed skill's file (WithSkillFiles)
+	minProtocol    int                                                      // lowest adapter protocol version identify accepts
+	deliverLocks   sync.Map                                                 // participant id -> *sync.Mutex: one delivery at a time, in batch order
 	// notifySink is told about each new, not held message to notify (WithNotifySink).
 	notifySink func(messageID string)
 	// roleChanged is told when a live session's role changes under it (WithRoleChanged).
@@ -257,6 +258,11 @@ type TimerArgs struct {
 	InMs    int64  `json:"in_ms"` // first fire = now + InMs
 	EveryMs int64  `json:"every_ms,omitempty"`
 	Body    string `json:"body"`
+}
+
+// TimerRemoveArgs names one of the caller's timers (watch list shows their ids).
+type TimerRemoveArgs struct {
+	ID string `json:"id"`
 }
 
 type Timer struct {

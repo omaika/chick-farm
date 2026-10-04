@@ -17,6 +17,11 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
   the incident still holds `escalate_after` later (default: the condition's duration; `max_rework`:
   at the next rework). An escalation to `notify` is a notice of kind `watch`. The built-in
   templates use them.
+- Timers: `piggery watch rm <id>` stops one of yours. A timer whose target left its team is
+  turned off instead of firing into a mailbox nobody reads, and a repeating one skips a target
+  that is gone (stopped) until it is back; a one-off still fires. Each turn-off is a `timer_off`
+  event. `piggery skills` and the Lead's prompt say how to use timers, and that they are not for
+  polling.
 - `piggery tasks` and a Tasks tab (`a`) in `web` list the tasks given in a team, or in every team
   of a project directory (a directory's line in `web` is selectable for it), newest first, with
   what became of each: open, handed back, accepted, dropped, or replaced by a next task before
@@ -56,11 +61,15 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
   `diagnosing-bugs`, `security-check`, `test-proof-debt-audit` for workers; `planning-lanes`,
   `council`, `repo-refresh` for a Lead; `grilling`, `pre-mortem`, `architecture-premise-audit`,
   `retrospective` for a supervisor. They use piggery's mail and board, and keep the team's records at
-  the repository's root (`CONTEXT.md`, `NOTEBOOK.md`, `notes/`). Not yet installed with the
-  templates or loaded by workers.
-- `roles.<r>.skills` in a template: `inherit` (the default), `[]` or a list of skill names. The
-  role's card tells its participant to use only those, `top` shows them in the Overview, and the
-  templates list names them. It is told, not enforced: the harness still offers its other skills.
+  the repository's root (`CONTEXT.md`, `NOTEBOOK.md`, `notes/`). They are unpacked into
+  `~/.piggery/skills/` like the templates (an edited file is kept), and `supervisor-executor` and
+  `slp` list them for their roles.
+- `roles.<r>.skills` in a template: piggery's skills the role uses (`inherit`, the default, and
+  `[]`: none). The role's card names each with when to use it and the `SKILL.md` to read, found in
+  the template's `skills/` or in `~/.piggery/skills/`; nothing is loaded into the harness, so it
+  works the same in every harness and in the session you opened, and costs a line per skill until
+  one is read. The harness's own skills are left as they are. `top` shows them in the Overview,
+  and the templates list names them.
 - `spawn.refused_commands` in `config.yaml` (default `[paseo]`): commands a worker's shell must not
   start. Each is a failing command first on every worker's `PATH` (`~/.piggery/bin`), and a Claude
   worker's settings deny it too. `paseo` is refused because it starts agents outside piggery's

@@ -159,6 +159,12 @@ func WithSharedPrompts(f func(template, role string) string) Option {
 	return func(e *Engine) { e.sharedPrompts = f }
 }
 
+// WithSkillFiles sets where a role card finds the skills its role lists (roles.<r>.skills): f
+// returns a skill's file to read and when to read it, ok false when it has none.
+func WithSkillFiles(f func(template, name string) (file, when string, ok bool)) Option {
+	return func(e *Engine) { e.skillFiles = f }
+}
+
 // driverNamed is the driver of harness h, nil when none runs it.
 func (e *Engine) driverNamed(h string) RuntimeDriver {
 	for _, d := range e.runtimes {

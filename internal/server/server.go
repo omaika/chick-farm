@@ -227,6 +227,10 @@ func Run(ctx context.Context, cfg Config) error {
 		core.WithDefaultHarness(settings.Harness), core.WithAllowedRoots(settings.AllowedRoots),
 		core.WithSharedPrompts(promptsFor(s.dir, settings.Prompts, func(m string) { s.log.Warn("shared prompts", "problem", m) })), core.WithNotifySink(s.notifyHook),
 		core.WithTemplates(func(name, _ string) (string, error) { return manifests.Resolve(name, s.dir) }),
+		core.WithSkillFiles(func(template, name string) (string, string, bool) {
+			file, desc, ok := manifests.FindSkill(s.dir, template, name)
+			return file, manifests.WhenToUse(desc), ok
+		}),
 		core.WithTemplateList(func(string) ([]core.TemplateRef, error) {
 			ls, err := manifests.List(s.dir)
 			refs := make([]core.TemplateRef, len(ls))
@@ -529,7 +533,7 @@ func (s *server) handle(ctx context.Context, cn *conn, req proto.Request) proto.
 			return call(req, func(a core.LogArgs) (any, error) { return s.eng.Log(ctx, a) })
 		}
 	case proto.VerbSend, proto.VerbInbox, proto.VerbCompletion, proto.VerbWho, proto.VerbBoard,
-		proto.VerbWatchAdd, proto.VerbWatchList, proto.VerbAgent, proto.VerbIdentify, proto.VerbPresence,
+		proto.VerbWatchAdd, proto.VerbWatchList, proto.VerbWatchRemove, proto.VerbAgent, proto.VerbIdentify, proto.VerbPresence,
 		proto.VerbHarnessEvent:
 	default:
 		return errResponse(req.ID, &core.Error{Code: core.CodeInvalid, Message: "unknown verb " + req.Verb})
@@ -589,6 +593,8 @@ func (s *server) handle(ctx context.Context, cn *conn, req proto.Request) proto.
 		return call(req, func(a core.TimerArgs) (any, error) { return s.eng.WatchAdd(ctx, c, a) })
 	case proto.VerbWatchList:
 		return call(req, func(struct{}) (any, error) { return s.eng.WatchList(ctx, c) })
+	case proto.VerbWatchRemove:
+		return call(req, func(a core.TimerRemoveArgs) (any, error) { return s.eng.WatchRemove(ctx, c, a) })
 	case proto.VerbIdentify:
 		return call(req, func(a core.IdentifyArgs) (any, error) {
 			s.mu.Lock()

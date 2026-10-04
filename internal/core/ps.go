@@ -99,8 +99,8 @@ type MemberState struct {
 	Transcript *Transcript `json:"transcript,omitempty"`
 	// Assignment is the latest mail marked op assign to it (a spawn or resume task is one); nil = none.
 	Assignment *Assignment `json:"assignment,omitempty"`
-	// Skills are its role's skills (roles.<r>.skills), told in its card, not enforced; nil =
-	// inherit (every skill of its harness), empty = none.
+	// Skills are piggery's skills its role lists (roles.<r>.skills), named in its card with the
+	// file to read; nil = inherit, empty = none (either way: none of piggery's).
 	Skills *[]string `json:"skills,omitempty"`
 }
 

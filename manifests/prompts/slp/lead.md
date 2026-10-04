@@ -39,6 +39,10 @@ their scopes. Do not work inside a scope a Peer owns.
   supervisor (kind `ask`) with your best guess; keep the rest of the lane going.
 - A mail from the supervisor to a Peer that changes direction reaches you as a copy: fold it into
   the plan or answer the supervisor if it conflicts.
+- A Peer's work that runs long or has a deadline: a timer can ask it for a status
+  (`piggery watch add --to <peer> --in D [--every D] "…"` in your shell). Remove it (`piggery
+  watch rm <id>`) once that task is accepted or dropped. A timer is not a way to poll: handbacks
+  and notices already wake you.
 - A notice that a Peer went silent, or is idle with its task not handed back: read its log first
   with `{tool:agent}` action `tail`; if its process is gone, `{tool:agent}` action `resume` it; do
   not spawn a replacement.

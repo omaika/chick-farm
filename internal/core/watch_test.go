@@ -307,3 +307,46 @@ func TestWatchMaxReworkAcross(t *testing.T) {
 	rework()
 	f.fires(t, 0) // told and escalated once
 }
+
+// A timer is removed by its owner only; a repeating one skips a gone target and stops for good
+// once the target left its team, while a one-off still reaches a gone member's inbox.
+func TestTimerRemoveAndTargets(t *testing.T) {
+	f := newTaskWatchFixture(t, "{on: worker, notify: reports_to, silent_for: 1h}")
+	add := func(every time.Duration, body string) core.Timer {
+		t.Helper()
+		tm, err := f.e.WatchAdd(ctx, f.lead, core.TimerArgs{To: "w", InMs: time.Minute.Milliseconds(), EveryMs: every.Milliseconds(), Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tm
+	}
+	fire := func(want int) {
+		t.Helper()
+		if n, err := f.e.FireDue(ctx); err != nil || n != want {
+			t.Fatalf("FireDue = %d, %v; want %d", n, err, want)
+		}
+	}
+	tm := add(time.Minute, "status?")
+	if _, err := f.e.WatchRemove(ctx, f.w, core.TimerRemoveArgs{ID: tm.ID}); code(err) != core.CodeNotFound {
+		t.Fatalf("remove by the target: %v", err)
+	}
+	if r, err := f.e.WatchRemove(ctx, f.lead, core.TimerRemoveArgs{ID: tm.ID}); err != nil || r.Active {
+		t.Fatalf("remove by the owner = %+v, %v", r, err)
+	}
+	f.advance(2 * time.Minute)
+	fire(0)
+
+	add(time.Minute, "status?")
+	add(0, "once")
+	f.presence(t, core.PresenceShutdown)
+	f.advance(61 * time.Second)
+	fire(1) // the one-off; the repeating one skips the gone worker
+	if _, err := f.db.Exec(`UPDATE participants SET left_at=1 WHERE id=?`, f.w.ParticipantID); err != nil {
+		t.Fatal(err)
+	}
+	f.advance(61 * time.Second)
+	fire(0)
+	if ts, err := f.e.WatchList(ctx, f.lead); err != nil || len(ts) != 0 {
+		t.Fatalf("timers after the target left = %+v, %v", ts, err)
+	}
+}

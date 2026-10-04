@@ -8,13 +8,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Skills by role (manifest roles.<r>.skills): which of its harness's skills a role's participant
-// may use. For now the list is told, not enforced: the role card names it and asks the model to
-// keep to it (skillsText). The harness still offers every skill of its setup. The design for
-// enforcing it in the drivers is docs/design/role-skills.md.
+// Skills by role (manifest roles.<r>.skills): piggery's skills a role's participant uses. Nothing
+// loads them into a harness: the role card names each with when to use it and the file to read
+// (skillsText), so every harness, and a session the Human opened, uses them the same way, and
+// pays for a line per skill until one is read. The harness's own skills are left as they are.
 
-// skillList is roles.<r>.skills: inherit (Set false: not written, or `inherit`), [] (no skill)
-// or the names allowed.
+// skillList is roles.<r>.skills: inherit (Set false: not written, or `inherit`) or [] (none of
+// piggery's skills), or the names given.
 type skillList struct {
 	Set   bool
 	Names []string
@@ -54,16 +54,28 @@ func validateSkills(name string, s skillList) error {
 	return nil
 }
 
-// skillsText is the role card's line about skills; "" for inherit.
-func skillsText(s skillList) string {
-	if !s.Set {
+// skillsText is the role card's part about skills: each listed one, when to use it and its file
+// (read when that case comes up: it is not loaded for you); "" when none is listed. A skill with no
+// file found is named as missing, so the gap shows instead of a silent omission.
+func (t *txn) skillsText(template string, s skillList) string {
+	if len(s.Names) == 0 {
 		return ""
 	}
-	if len(s.Names) == 0 {
-		return "\nSkills: your role uses none. Your harness may offer skills: do not use any of them; if one seems needed, ask whoever gave you the work.\n"
+	var b strings.Builder
+	b.WriteString("\nSkills of your role: when a case below comes up, read that skill's file first and follow it (it is not loaded for you).\n")
+	for _, n := range s.Names {
+		var file, when string
+		ok := false
+		if t.skill != nil {
+			file, when, ok = t.skill(template, n)
+		}
+		if !ok {
+			fmt.Fprintf(&b, "- %s: not installed (no %s/SKILL.md found); tell whoever gave you the work if you need it\n", n, n)
+			continue
+		}
+		fmt.Fprintf(&b, "- %s (%s): %s\n", n, file, when)
 	}
-	return fmt.Sprintf("\nSkills: your role uses only %s. Your harness may offer others: do not use them; if one seems needed, ask whoever gave you the work.\n",
-		strings.Join(s.Names, ", "))
+	return b.String()
 }
 
 // skillsOf is s as MemberState.Skills: nil for inherit.
