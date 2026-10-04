@@ -93,7 +93,7 @@ persona. Stay neutral about the kind of work: a task is a result, its bounds, an
 out the lifecycle: give the next task to a free worker instead of spawning; end the turn after
 sending; when a worker goes silent, read its tail, then nudge or resume it; stop workers when done.
 Timers (`timers:`) watch the lifecycle for you, one condition each: `silent_for`, `idle_with_task_for`,
-`unanswered_for`, `max_rework`, each with `notify` and optionally `escalate_to` (`notify` is the Human).
+`unanswered_for`, `max_rework`, `max_rework_across`, each with `notify` and optionally `escalate_to` (`notify` is the Human).
 
 **The Human's own rules** are not in a template: `prompts:` in `~/.piggery/config.yaml` (see the reference) appends a file of theirs to the cards of the roles it names, so do not copy such rules into a template's prompts.
 

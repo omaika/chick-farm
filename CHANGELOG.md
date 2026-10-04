@@ -17,6 +17,15 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
   the incident still holds `escalate_after` later (default: the condition's duration; `max_rework`:
   at the next rework). An escalation to `notify` is a notice of kind `watch`. The built-in
   templates use them.
+- Timer condition `max_rework_across: N`: more than N `rework` mails sent by a member over two
+  or more tasks, so reworks spread thin (two here, one there) that no task's `max_rework` counts
+  still reach someone, as a question whether they share one cause. Told once per member, escalated
+  at the next rework. `slp` watches its Leads with it, `supervisor-executor` its supervisor.
+- The built-in role prompts guard against more agent-team anti-patterns: an executor or Peer names
+  a missing mechanism instead of building a stand-in, changes the thing rather than wrapping it,
+  checks before giving in to a doubt, and does not reshape the product to make a check pass; a
+  supervisor or Lead gives outcomes rather than implementation steps, says where the undone part
+  of an accepted handback goes, and fixes a shared cause instead of its symptoms.
 - `found` without a template founds `supervisor-executor`, not `p2p`.
 - Templates have `when_to_use` and `when_not_to_use` lines; `agent action=templates` lists them so
   an agent picks a template by criteria, not by its summary alone. The built-ins have them.

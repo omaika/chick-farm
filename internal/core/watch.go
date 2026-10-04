@@ -24,9 +24,12 @@ import (
 //   - unanswered_for D: a live teammate's mail to it has had no mail from it back to that teammate for
 //     longer than D (the oldest such mail is the incident); an accept or drop wants no answer.
 //   - max_rework N: more than N mails of kind rework to it since its task.
+//   - max_rework_across N: more than N mails of kind rework sent by it, over two or more tasks (a
+//     task: the receiver's latest mail marked op assign before the rework). Reworks spread over
+//     tasks may share one cause that no single task's count shows. Once per member.
 //
 // escalate_to fires escalate_after (default: the condition's D) after the notice while the same
-// incident holds; for max_rework, at the next rework after the notice.
+// incident holds; for max_rework and max_rework_across, at the next rework after the notice.
 
 // watchRule is one entry of the manifest's `timers:` list.
 type watchRule struct {
@@ -36,6 +39,7 @@ type watchRule struct {
 	IdleWithTaskFor string `yaml:"idle_with_task_for"`
 	UnansweredFor   string `yaml:"unanswered_for"`
 	MaxRework       int    `yaml:"max_rework"`
+	MaxReworkAcross int    `yaml:"max_rework_across"`
 	EscalateTo      string `yaml:"escalate_to"` // a role, reports_to, self or notify (the Human's notices)
 	EscalateAfter   string `yaml:"escalate_after"`
 }
@@ -46,15 +50,16 @@ const (
 	condIdleTask   = "idle_with_task_for"
 	condUnanswered = "unanswered_for"
 	condMaxRework  = "max_rework"
+	condReworkAcr  = "max_rework_across"
 
 	targetReportsTo = "reports_to"
 	targetSelf      = "self"
 )
 
 var watchKeys = map[string]bool{"on": true, "notify": true, condSilent: true, condIdleTask: true, condUnanswered: true,
-	condMaxRework: true, "escalate_to": true, "escalate_after": true}
+	condMaxRework: true, condReworkAcr: true, "escalate_to": true, "escalate_after": true}
 
-// condition returns the rule's one condition and its duration (0 for max_rework).
+// condition returns the rule's one condition and its duration (0 for a count).
 func (r watchRule) condition() (string, time.Duration, error) {
 	var set []string
 	for _, c := range []struct{ key, val string }{{condSilent, r.SilentFor}, {condIdleTask, r.IdleWithTaskFor},
@@ -66,9 +71,13 @@ func (r watchRule) condition() (string, time.Duration, error) {
 	if r.MaxRework != 0 {
 		set = append(set, condMaxRework)
 	}
+	if r.MaxReworkAcross != 0 {
+		set = append(set, condReworkAcr)
+	}
 	switch {
 	case len(set) == 0:
-		return "", 0, fmt.Errorf("needs one of %s, %s, %s or %s", condSilent, condIdleTask, condUnanswered, condMaxRework)
+		return "", 0, fmt.Errorf("needs one of %s, %s, %s, %s or %s", condSilent, condIdleTask, condUnanswered,
+			condMaxRework, condReworkAcr)
 	case len(set) > 1:
 		return "", 0, fmt.Errorf("has %s: one condition per rule", strings.Join(set, " and "))
 	}
@@ -78,6 +87,11 @@ func (r watchRule) condition() (string, time.Duration, error) {
 			return "", 0, fmt.Errorf("max_rework must be positive")
 		}
 		return condMaxRework, 0, nil
+	case condReworkAcr:
+		if r.MaxReworkAcross < 0 {
+			return "", 0, fmt.Errorf("max_rework_across must be positive")
+		}
+		return condReworkAcr, 0, nil
 	case condIdleTask:
 		d, err := positiveDuration(condIdleTask, r.IdleWithTaskFor)
 		return condIdleTask, d, err
@@ -95,6 +109,8 @@ func (r watchRule) describe() string {
 	switch cond {
 	case condMaxRework:
 		return fmt.Sprintf("%s %d", cond, r.MaxRework)
+	case condReworkAcr:
+		return fmt.Sprintf("%s %d", cond, r.MaxReworkAcross)
 	case condIdleTask:
 		return cond + " " + r.IdleWithTaskFor
 	case condUnanswered:
@@ -104,7 +120,7 @@ func (r watchRule) describe() string {
 }
 
 // escalation returns how long after the notice an incident that still holds goes to escalate_to
-// (0 for max_rework: the next rework does). Without escalate_to it is 0.
+// (0 for a count: the next rework does). Without escalate_to it is 0.
 func (r watchRule) escalation() (time.Duration, error) {
 	cond, d, err := r.condition()
 	switch {
@@ -114,13 +130,16 @@ func (r watchRule) escalation() (time.Duration, error) {
 		return 0, fmt.Errorf("escalate_after needs escalate_to")
 	case r.EscalateTo == "":
 		return 0, nil
-	case cond == condMaxRework && r.EscalateAfter != "":
-		return 0, fmt.Errorf("escalate_after does not apply to max_rework: it escalates at the next rework after the notice")
+	case counted(cond) && r.EscalateAfter != "":
+		return 0, fmt.Errorf("escalate_after does not apply to %s: it escalates at the next rework after the notice", cond)
 	case r.EscalateAfter == "":
 		return d, nil
 	}
 	return positiveDuration("escalate_after", r.EscalateAfter)
 }
+
+// counted reports whether cond is a count of reworks rather than a duration.
+func counted(cond string) bool { return cond == condMaxRework || cond == condReworkAcr }
 
 func positiveDuration(key, val string) (time.Duration, error) {
 	d, err := time.ParseDuration(val)
@@ -234,7 +253,7 @@ type incident struct {
 	subject participant
 	key     string
 	what    string // e.g. "has been working for 21m with no turn end"
-	count   int    // max_rework: the reworks so far
+	count   int    // max_rework, max_rework_across: the reworks so far
 }
 
 // firedIncident is a watch_fired event: when the notice went out and the count it carried.
@@ -255,7 +274,11 @@ func (t *txn) watchRule(teamID string, idx int, r watchRule) (fired int, wake, h
 	}
 	ruleID := fmt.Sprintf("timers[%d] %s", idx, cond)
 	for _, p := range subjects {
-		in, ok, err := t.watchIncident(cond, p, d, r.MaxRework)
+		n := r.MaxRework
+		if cond == condReworkAcr {
+			n = r.MaxReworkAcross
+		}
+		in, ok, err := t.watchIncident(cond, p, d, n)
 		if err != nil {
 			return 0, nil, nil, err
 		}
@@ -290,7 +313,7 @@ func (t *txn) watchRule(teamID string, idx int, r watchRule) (fired int, wake, h
 			}
 			continue
 		}
-		if cond == condMaxRework && in.count <= prev.count || cond != condMaxRework && t.now-prev.ts < after.Milliseconds() {
+		if counted(cond) && in.count <= prev.count || !counted(cond) && t.now-prev.ts < after.Milliseconds() {
 			continue
 		}
 		tail := fmt.Sprintf("(rule %s, escalated: told %s ago)", r.describe(), age(t.now-prev.ts))
@@ -366,7 +389,7 @@ func youVerb(what string, self bool) string {
 	return what
 }
 
-// watchIncident evaluates condition cond (duration d, or n for max_rework) on p.
+// watchIncident evaluates condition cond (duration d, or n for a count) on p.
 func (t *txn) watchIncident(cond string, p participant, d time.Duration, n int) (incident, bool, error) {
 	switch cond {
 	case condIdleTask:
@@ -375,6 +398,8 @@ func (t *txn) watchIncident(cond string, p participant, d time.Duration, n int) 
 		return t.unansweredIncident(p, d)
 	case condMaxRework:
 		return t.reworkIncident(p, n)
+	case condReworkAcr:
+		return t.reworkAcrossIncident(p, n)
 	}
 	return t.silentIncident(p, d)
 }
@@ -510,6 +535,61 @@ func (t *txn) reworkIncident(p participant, n int) (incident, bool, error) {
 	}
 	return incident{subject: p, key: key, count: count,
 		what: fmt.Sprintf("has been sent %d reworks%s", count, on)}, true, nil
+}
+
+// reworkAcrossIncident reports more than n mails of kind rework sent by p, over two or more tasks;
+// a rework's task is its receiver's latest mail marked op assign before it. The key is p: the
+// count only grows, so it is told once (and escalated at the next rework).
+func (t *txn) reworkAcrossIncident(p participant, n int) (incident, bool, error) {
+	if p.state == "gone" {
+		return incident{}, false, nil
+	}
+	rows, err := t.QueryContext(t.ctx, `SELECT w.name, COALESCE(a.id,''), COALESCE(a.seq,0), COALESCE(a.body,'')
+		FROM messages r JOIN participants w ON w.id=r.to_id
+		LEFT JOIN messages a ON a.id=(SELECT x.id FROM messages x WHERE x.op=? AND x.to_id=r.to_id
+			AND x.held_reason IS NULL AND x.seq<r.seq ORDER BY x.seq DESC LIMIT 1)
+		WHERE r.from_id=? AND r.kind='rework' AND r.cc_of IS NULL AND r.held_reason IS NULL ORDER BY r.seq`, OpAssign, p.id)
+	if err != nil {
+		return incident{}, false, internal(err)
+	}
+	defer rows.Close()
+	type spot struct {
+		ref   string
+		count int
+	}
+	var spots []*spot
+	byTask := map[string]*spot{}
+	total := 0
+	for rows.Next() {
+		var name, body string
+		var task watchTask
+		if err := rows.Scan(&name, &task.id, &task.seq, &body); err != nil {
+			return incident{}, false, internal(err)
+		}
+		key, ref := name+"/"+task.id, name
+		if task.id != "" {
+			task.title = assignmentTitle(body)
+			ref = name + " on " + taskRef(task)
+		}
+		if byTask[key] == nil {
+			byTask[key] = &spot{ref: ref}
+			spots = append(spots, byTask[key])
+		}
+		byTask[key].count++
+		total++
+	}
+	if err := rows.Err(); err != nil {
+		return incident{}, false, internal(err)
+	}
+	if total <= n || len(spots) < 2 {
+		return incident{}, false, nil
+	}
+	parts := make([]string, len(spots))
+	for i, s := range spots {
+		parts[i] = fmt.Sprintf("%s: %d", s.ref, s.count)
+	}
+	return incident{subject: p, key: p.id, count: total,
+		what: fmt.Sprintf("has sent %d reworks over %d tasks (%s)", total, len(spots), strings.Join(parts, "; "))}, true, nil
 }
 
 func taskRef(w watchTask) string {

@@ -168,6 +168,9 @@ func TestWatchRulesValidated(t *testing.T) {
 		"{on: worker, notify: lead, silent_for: 1m, escalate_after: 5m}",                     // escalate_after alone
 		"{on: worker, notify: lead, silent_for: 1m, escalate_to: nobody}",                    // unknown escalation target
 		"{on: worker, notify: lead, max_rework: 2, escalate_to: notify, escalate_after: 1m}", // max_rework escalates by count
+		"{on: worker, notify: lead, max_rework: 2, max_rework_across: 3}",                    // two conditions
+		"{on: worker, notify: lead, max_rework_across: -1}",                                  // not positive
+		"{on: lead, notify: self, max_rework_across: 2, escalate_to: notify, escalate_after: 1m}",
 	} {
 		man := "template: wr\nroles: {lead: {tools: [send, inbox, who, agent]}, worker: {tools: [send, inbox, who, agent]}}\ntimers:\n  - " + rule + "\n"
 		if _, err := e.TeamUp(ctx, core.TeamUpArgs{Manifest: man, Cwd: t.TempDir()}); code(err) != core.CodeInvalid {
@@ -271,4 +274,36 @@ func TestWatchMaxRework(t *testing.T) {
 	rework()
 	rework()
 	f.fires(t, 1) // the new task's own incident
+}
+
+// max_rework_across: reworks a member sent, spread over two or more tasks, tell the rule's target
+// once even when no task has many; one more after that escalates. Reworks on one task alone do not.
+func TestWatchMaxReworkAcross(t *testing.T) {
+	f := newTaskWatchFixture(t, "{on: lead, notify: self, max_rework_across: 2, escalate_to: notify}")
+	rework := func() {
+		f.send(t, f.w, core.SendArgs{To: "lead", Kind: "handback", Body: "done"})
+		f.send(t, f.lead, core.SendArgs{To: "w", Kind: "rework", Body: "not yet"})
+	}
+	rework()
+	rework()
+	rework()
+	f.fires(t, 0) // one task: max_rework's business
+	next := f.send(t, f.lead, core.SendArgs{To: "w", Op: core.OpAssign, Kind: "task", Body: "tidy the lexer"})
+	rework()
+	f.fires(t, 1)
+	f.fires(t, 0)
+	n := f.leadNotices(t)
+	if len(n) != 1 || !strings.HasPrefix(n[0], "You have sent 4 reworks over 2 tasks (w on #") ||
+		!strings.Contains(n[0], `"fix the parser": 3; w on `+next+` "tidy the lexer": 1) (rule max_rework_across 2).`) {
+		t.Fatalf("notice = %q", n)
+	}
+	rework()
+	f.fires(t, 1) // escalated to the Human
+	f.fires(t, 0)
+	ns, err := f.e.Notices(ctx, 5)
+	if err != nil || len(ns) != 1 || !strings.HasPrefix(ns[0].Body, "lead (lead) has sent 5 reworks over 2 tasks") {
+		t.Fatalf("notices = %+v, %v", ns, err)
+	}
+	rework()
+	f.fires(t, 0) // told and escalated once
 }
