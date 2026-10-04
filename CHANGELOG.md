@@ -21,6 +21,7 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
   or more tasks, so reworks spread thin (two here, one there) that no task's `max_rework` counts
   still reach someone, as a question whether they share one cause. Told once per member, escalated
   at the next rework. `slp` watches its Leads with it, `supervisor-executor` its supervisor.
+  The DB moves to schema v23 for it (an index on rework mails; the old DB is backed up first).
 - The built-in role prompts guard against more agent-team anti-patterns: an executor or Peer names
   a missing mechanism instead of building a stand-in, changes the thing rather than wrapping it,
   checks before giving in to a doubt, and does not reshape the product to make a check pass; a
