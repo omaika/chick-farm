@@ -25,6 +25,7 @@ const (
 	VerbBoard        = "board"         // no args -> []core.Message (live pins)
 	VerbWatchAdd     = "watch.add"     // args core.TimerArgs -> core.Timer
 	VerbWatchList    = "watch.list"    // no args -> []core.Timer
+	VerbWatchRemove  = "watch.rm"      // args core.TimerRemoveArgs -> core.Timer (now inactive)
 	VerbAgent        = "agent"         // args core.AgentArgs -> core.AgentResult
 	VerbJoinAuto     = "join.auto"     // no auth (socket 0600 is the boundary), args core.JoinAutoArgs -> core.JoinResult
 	VerbIdentify     = "identify"      // args core.IdentifyArgs -> core.IdentifyResult; binds the connection

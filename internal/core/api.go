@@ -259,6 +259,11 @@ type TimerArgs struct {
 	Body    string `json:"body"`
 }
 
+// TimerRemoveArgs names one of the caller's timers (watch list shows their ids).
+type TimerRemoveArgs struct {
+	ID string `json:"id"`
+}
+
 type Timer struct {
 	ID      string `json:"id"`
 	Owner   string `json:"owner"`

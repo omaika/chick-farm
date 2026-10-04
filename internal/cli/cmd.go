@@ -214,7 +214,7 @@ func (e *env) root() *cobra.Command {
 		e.cmd("completion --batch N", "", "", "", authParticipant, e.completion),
 		e.cmd("who", "", "", "", authParticipant, func(a []string) error { return simple(e, "who", a, proto.VerbWho, printWho) }),
 		e.cmd("board", "", "", "", authParticipant, func(a []string) error { return simple(e, "board", a, proto.VerbBoard, printBoard) }),
-		e.cmd("watch add|list", "", "", "", authParticipant, e.watch),
+		e.cmd("watch add|list|rm", "", "", "", authParticipant, e.watch),
 		e.cmd("agent spawn|stop|resume|tail|templates|close|reopen|merge", "", "", "", authParticipant, e.agent),
 		// The Claude Code adapter: Claude runs these, never a person.
 		e.cmd("mcp", "", "", "", authLocal, e.mcp),
@@ -304,7 +304,12 @@ func (e *env) watch(args []string) error {
 	if len(args) > 0 && args[0] == "list" {
 		return simple(e, "watch list", args[1:], proto.VerbWatchList, printTimers)
 	}
-	return fmt.Errorf("%w: watch add|list", errUsage)
+	if len(args) == 2 && args[0] == "rm" {
+		return do(e, proto.VerbWatchRemove, core.TimerRemoveArgs{ID: args[1]}, func(w io.Writer, t core.Timer) {
+			printTimers(w, []core.Timer{t})
+		})
+	}
+	return fmt.Errorf("%w: watch add|list|rm <id>", errUsage)
 }
 
 // alias gives c another name.

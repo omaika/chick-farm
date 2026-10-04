@@ -37,6 +37,20 @@ piggery completion --batch N                  # ack a batch you pulled with inbo
   timer counts it).
 - After sending, end your turn: mail wakes you. Do not poll.
 
+**Timers** (from a worker's shell, which carries `PIGGERY_ID`; a session the Human opened has no
+timer tool yet):
+
+```sh
+piggery watch add --to N --in 30m [--every 1h] "text"   # a mail from engine to N then (and every hour; at least 1m apart)
+piggery watch list                                       # your active timers, with their ids
+piggery watch rm <id>                                    # stop one of yours
+```
+
+- `N` is anyone your routing lets you mail. Use a timer for a check-in or a deadline on long
+  work, not to poll: handbacks, questions and notices already wake you.
+- Remove a repeating timer once the work it watches is closed. One whose target left the team
+  stops by itself; a repeating one skips a member that is gone (stopped) until it is back.
+
 ## Workers and teams
 
 ```sh

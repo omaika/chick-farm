@@ -17,6 +17,11 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
   the incident still holds `escalate_after` later (default: the condition's duration; `max_rework`:
   at the next rework). An escalation to `notify` is a notice of kind `watch`. The built-in
   templates use them.
+- Timers: `piggery watch rm <id>` stops one of yours. A timer whose target left its team is
+  turned off instead of firing into a mailbox nobody reads, and a repeating one skips a target
+  that is gone (stopped) until it is back; a one-off still fires. Each turn-off is a `timer_off`
+  event. `piggery skills` and the Lead's prompt say how to use timers, and that they are not for
+  polling.
 - `piggery tasks` and a Tasks tab (`a`) in `web` list the tasks given in a team, or in every team
   of a project directory (a directory's line in `web` is selectable for it), newest first, with
   what became of each: open, handed back, accepted, dropped, or replaced by a next task before

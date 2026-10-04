@@ -529,7 +529,7 @@ func (s *server) handle(ctx context.Context, cn *conn, req proto.Request) proto.
 			return call(req, func(a core.LogArgs) (any, error) { return s.eng.Log(ctx, a) })
 		}
 	case proto.VerbSend, proto.VerbInbox, proto.VerbCompletion, proto.VerbWho, proto.VerbBoard,
-		proto.VerbWatchAdd, proto.VerbWatchList, proto.VerbAgent, proto.VerbIdentify, proto.VerbPresence,
+		proto.VerbWatchAdd, proto.VerbWatchList, proto.VerbWatchRemove, proto.VerbAgent, proto.VerbIdentify, proto.VerbPresence,
 		proto.VerbHarnessEvent:
 	default:
 		return errResponse(req.ID, &core.Error{Code: core.CodeInvalid, Message: "unknown verb " + req.Verb})
@@ -589,6 +589,8 @@ func (s *server) handle(ctx context.Context, cn *conn, req proto.Request) proto.
 		return call(req, func(a core.TimerArgs) (any, error) { return s.eng.WatchAdd(ctx, c, a) })
 	case proto.VerbWatchList:
 		return call(req, func(struct{}) (any, error) { return s.eng.WatchList(ctx, c) })
+	case proto.VerbWatchRemove:
+		return call(req, func(a core.TimerRemoveArgs) (any, error) { return s.eng.WatchRemove(ctx, c, a) })
 	case proto.VerbIdentify:
 		return call(req, func(a core.IdentifyArgs) (any, error) {
 			s.mu.Lock()

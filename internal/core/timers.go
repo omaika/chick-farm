@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 )
 
@@ -73,8 +74,37 @@ func (e *Engine) WatchList(ctx context.Context, c Caller) ([]Timer, error) {
 	return out, err
 }
 
-// FireDue fires active timers with fire_at <= now: one message from "engine" to the target,
-// event timer_fired, then deactivate (or reschedule when every_ms > 0). Called by serve's ticker.
+// WatchRemove turns off one of the caller's active timers; it fires no more.
+func (e *Engine) WatchRemove(ctx context.Context, c Caller, a TimerRemoveArgs) (Timer, error) {
+	var tm Timer
+	err := e.inTx(ctx, func(t *txn) error {
+		p, err := t.callerGranted(c, "watch.rm", "send")
+		if err != nil {
+			return err
+		}
+		ts, err := t.timers(`id=? AND owner=? AND active=1`, a.ID, p.id)
+		if err != nil {
+			return err
+		}
+		if len(ts) == 0 {
+			return errf(CodeNotFound, "no active timer %s of yours (watch list shows them)", a.ID)
+		}
+		tm = ts[0]
+		if _, err := t.ExecContext(t.ctx, `UPDATE timers SET active=0 WHERE id=?`, tm.ID); err != nil {
+			return internal(err)
+		}
+		tm.Active = false
+		return t.event(evt{typ: "timer_off", participant: p.id, team: p.team, run: p.run, ref: tm.ID,
+			payload: map[string]any{"reason": "removed", "target": tm.Target}})
+	})
+	return tm, err
+}
+
+// FireDue fires active timers with fire_at <= now: one message from "engine" to the target, then
+// deactivate (or reschedule when every_ms > 0). Called by serve's ticker. A timer whose target left
+// its team (or is no more) is turned off without a message: nothing would read it. A repeating one
+// whose target is gone skips the firing: its mail would pile up for a member that may never come
+// back; a one-off still fires, and waits for the member like any mail.
 func (e *Engine) FireDue(ctx context.Context) (int, error) {
 	var targets []string
 	err := e.inTx(ctx, func(t *txn) error {
@@ -87,6 +117,32 @@ func (e *Engine) FireDue(ctx context.Context) (int, error) {
 			var team string
 			if err := t.QueryRowContext(t.ctx, `SELECT COALESCE(team_id,'') FROM timers WHERE id=?`, tm.ID).Scan(&team); err != nil {
 				return internal(err)
+			}
+			q, ok, err := t.participantByID(tm.Target)
+			if err != nil {
+				return err
+			}
+			var left sql.NullInt64
+			if ok {
+				if err := t.QueryRowContext(t.ctx, `SELECT left_at FROM participants WHERE id=?`, q.id).Scan(&left); err != nil {
+					return internal(err)
+				}
+			}
+			if !ok || left.Valid {
+				if _, err := t.ExecContext(t.ctx, `UPDATE timers SET active=0 WHERE id=?`, tm.ID); err != nil {
+					return internal(err)
+				}
+				if err := t.event(evt{typ: "timer_off", participant: tm.Owner, team: team, ref: tm.ID,
+					payload: map[string]any{"reason": "target_left", "target": tm.Target}}); err != nil {
+					return err
+				}
+				continue
+			}
+			if q.state == "gone" && tm.EveryMs > 0 {
+				if _, err := t.ExecContext(t.ctx, `UPDATE timers SET fire_at=? WHERE id=?`, t.now+tm.EveryMs, tm.ID); err != nil {
+					return internal(err)
+				}
+				continue
 			}
 			id := newID(t.now)
 			if _, err := t.insertMessage(id, "", team, AddrEngine, tm.Target, "", "", "", "", tm.Body); err != nil {
