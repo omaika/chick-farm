@@ -42,6 +42,7 @@ const (
 	VerbResume       = "resume"        // admin, args core.AdminTarget -> core.AgentResult (new run)
 	VerbModel        = "model"         // admin, args core.ModelArgs -> core.ModelResult
 	VerbModels       = "models"        // admin, args core.AdminTarget -> core.ModelsResult (read-only): what `model` accepts for the worker
+	VerbMail         = "mail"          // admin, args core.MailArgs -> core.MailResult (read-only; acks nothing)
 	VerbGC           = "gc"            // admin, args core.GCArgs -> core.GCResult (archives under <dir>/archive)
 )
 
