@@ -44,6 +44,7 @@ const (
 	VerbModel        = "model"         // admin, args core.ModelArgs -> core.ModelResult
 	VerbModels       = "models"        // admin, args core.AdminTarget -> core.ModelsResult (read-only): what `model` accepts for the worker
 	VerbMail         = "mail"          // admin, args core.MailArgs -> core.MailResult (read-only; acks nothing)
+	VerbTasks        = "tasks"         // admin, args core.TasksArgs -> core.TasksResult (read-only)
 	VerbGC           = "gc"            // admin, args core.GCArgs -> core.GCResult (archives under <dir>/archive)
 )
 

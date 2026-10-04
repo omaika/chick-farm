@@ -136,6 +136,7 @@ func (s *webServer) handler(addr string) http.Handler {
 	mux.HandleFunc("GET /api/tail", s.api(s.tail))
 	mux.HandleFunc("GET /api/models", s.api(s.models))
 	mux.HandleFunc("GET /api/mail", s.api(s.mail))
+	mux.HandleFunc("GET /api/tasks", s.api(s.tasks))
 	mux.HandleFunc("POST /api/kill", s.api(s.kill))
 	mux.HandleFunc("POST /api/model", s.api(s.model))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -295,6 +296,20 @@ func pinsOnly(r core.MailResult) error {
 		}
 	}
 	return nil
+}
+
+// tasks is the tasks of a team or of a project directory's teams (verb `tasks`, read-only).
+func (s *webServer) tasks(r *http.Request) (any, error) {
+	q := r.URL.Query()
+	a := core.TasksArgs{Team: q.Get("team"), Dir: q.Get("dir")}
+	if (a.Team == "") == (a.Dir == "") {
+		return nil, fmt.Errorf("%w: a team or a directory", errUsage)
+	}
+	var out core.TasksResult
+	if err := s.call(proto.VerbTasks, a, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // kill is top's x: the verb `kill` on a worker.

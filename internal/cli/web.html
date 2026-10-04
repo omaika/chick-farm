@@ -84,6 +84,8 @@
   .mail .body.open { max-height: none; }
   .mail .body.long:not(.open)::after { content: "…more"; position: absolute; right: 0; bottom: 0; background: var(--panel); color: var(--accent); padding-left: 6px; }
   .m-pending { color: var(--waiting); } .m-delivered { color: var(--accent); } .m-acked, .m-board { color: var(--muted); } .m-held { color: var(--danger); }
+  .k-open { color: var(--accent); } .k-handed_back { color: var(--waiting); } .k-accepted { color: var(--working); }
+  .k-dropped { color: var(--muted); } .k-replaced { color: var(--danger); }
   .mailbar { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
 
   footer { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); background: var(--panel); max-height: 34vh; }
@@ -130,6 +132,7 @@
       <button id="tab-tail">Tail</button>
       <button id="tab-mail">Mail</button>
       <button id="tab-board">Board</button>
+      <button id="tab-tasks">Tasks</button>
       <span class="grow"></span>
       <button id="act-model" hidden>Model ▾</button>
       <button id="act-kill" class="danger" hidden>Kill</button>
@@ -142,7 +145,7 @@
   <section><h3 id="events-h"></h3><div id="events"></div></section>
 </footer>
 <div class="keys">
-  <kbd>↑</kbd><kbd>↓</kbd> select · <kbd>←</kbd><kbd>→</kbd> tab · <kbd>enter</kbd> open/close · <kbd>t</kbd> overview/tail · <kbd>m</kbd> mail · <kbd>b</kbd> board ·
+  <kbd>↑</kbd><kbd>↓</kbd> select · <kbd>←</kbd><kbd>→</kbd> tab · <kbd>enter</kbd> open/close · <kbd>t</kbd> overview/tail · <kbd>m</kbd> mail · <kbd>b</kbd> board · <kbd>a</kbd> tasks ·
   <kbd>x</kbd> kill · <kbd>M</kbd> model · <kbd>e</kbd> events · <kbd>n</kbd> notices
 </div>
 <div id="toast"></div>
@@ -262,7 +265,10 @@ function renderList() {
   const member = (r) => line(r.id, null, h("div", { title: r.name },
     h("span", { class: "chev" }), h("span", { class: "muted" }, r.prefix || ""), r.name, r.gate ? h("span", { class: "tag" }, "gate") : null), cells(r), r.dim ? "dim" : "");
   for (const d of dirs) {
-    grid.append(h("div", { class: "dir", title: d.path }, "📁 " + d.label));
+    const dirId = DIR_LINE + d.path;
+    items.push({ id: dirId, toggle: null, dir: true });
+    grid.append(h("div", { class: `r item${dirId === ui.sel ? " sel" : ""}`, "data-id": dirId, onclick: () => select(dirId) },
+      h("div", { class: "dir", title: d.path }, "📁 " + d.label)));
     for (const b of d.blocks) {
       if (b.head) {
         const hd = b.head, open = teamOpen(hd.id, hd.open);
@@ -322,6 +328,11 @@ function renderFresh() {
 
 /** The selected row's Overview: ps --view's detail of it. */
 function overview(sel, row) {
+  if (sel.startsWith(DIR_LINE)) {
+    const dir = view.all.dirs.concat(view.closed.dirs).find((d) => d.path === sel.slice(DIR_LINE.length));
+    return h("div", { class: "detail" }, h("h2", {}, "📁 " + sel.slice(DIR_LINE.length)),
+      dir ? h("div", { class: "muted" }, `${dir.blocks.length} team${dir.blocks.length === 1 ? "" : "s"} or solo${dir.blocks.length === 1 ? "" : "s"} · Tasks lists every task given in its teams`) : null);
+  }
   const d = view.details[sel];
   if (!d) return h("div", { class: "muted" }, "Select a row.");
   const out = h("div", { class: "detail" }, h("h2", {}, d.title, d.sub ? h("span", { class: "muted", style: "font-weight: normal" }, "  " + d.sub) : null));
@@ -350,6 +361,8 @@ function renderSide() {
   $("tab-mail").disabled = !mailScope(ui.sel);
   $("tab-board").className = ui.side === "board" ? "on" : "";
   $("tab-board").disabled = !boardTeam(ui.sel);
+  $("tab-tasks").className = ui.side === "tasks" ? "on" : "";
+  $("tab-tasks").disabled = !tasksScope(ui.sel);
   $("act-kill").hidden = !acts.kill;
   $("act-model").hidden = !acts.pick;
   const body = $("sidebody");
@@ -371,12 +384,16 @@ function renderSide() {
     body.replaceChildren(boardPins());
     return;
   }
+  if (ui.side === "tasks" && tasksScope(ui.sel)) {
+    body.replaceChildren(taskList());
+    return;
+  }
   body.replaceChildren(overview(ui.sel, row));
 }
 
 // ---- mail: the selected participant's messages, sent and received, or a team line's ----
 
-const TEAM_LINE = "\u0000team:", GONE_LINE = "\u0000gone:";
+const TEAM_LINE = "\u0000team:", GONE_LINE = "\u0000gone:", DIR_LINE = "\u0000dir:";
 let mail = { key: "", messages: null, older: [], more: false, err: "" };
 const mailOpen = new Set(); // the seqs whose body is shown whole
 
@@ -477,6 +494,65 @@ function boardPins() {
   return out;
 }
 
+// ---- tasks: every task given in the selected team, or in the teams of the selected directory ----
+
+let tasks = { key: "", list: null, more: false, err: "" };
+
+/** What the Tasks tab lists for id: a directory's teams, or a team (its line, its gone line, a member's). */
+function tasksScope(id) {
+  if (id.startsWith(DIR_LINE)) return { dir: id.slice(DIR_LINE.length) };
+  const team = boardTeam(id);
+  return team ? { team } : null;
+}
+
+async function pollTasks() {
+  const scope = ui.side === "tasks" && view ? tasksScope(ui.sel) : null;
+  if (!scope) return;
+  const key = JSON.stringify(scope);
+  if (key !== tasks.key) tasks = { key, list: null, more: false, err: "" };
+  try {
+    const r = await api("/api/tasks?" + new URLSearchParams(scope));
+    if (key !== tasks.key) return;
+    tasks.list = r.tasks;
+    tasks.more = r.more;
+    tasks.err = "";
+  } catch (e) {
+    if (key === tasks.key) tasks.err = /unknown verb tasks/.test(e.message) ? `${e.message} (the daemon is older than this page: piggery restart)` : e.message;
+  }
+  if (key === tasks.key) renderSide();
+}
+setInterval(pollTasks, 3 * EVERY);
+
+function taskList() {
+  const scope = tasksScope(ui.sel);
+  if (tasks.key !== JSON.stringify(scope) || tasks.list === null) return h("div", { class: tasks.err ? "danger-text" : "muted" }, tasks.err || "reading…");
+  const counts = {};
+  for (const k of tasks.list) counts[k.state] = (counts[k.state] || 0) + 1;
+  const word = (s) => s.replace("_", " ");
+  const out = h("div", {},
+    h("div", { class: "mailbar muted" }, `${tasks.list.length}${tasks.more ? "+" : ""} task${tasks.list.length === 1 ? "" : "s"}`,
+      ...["open", "handed_back", "accepted", "dropped", "replaced"].filter((s) => counts[s]).map((s) => h("span", { class: "k-" + s }, `${counts[s]} ${word(s)}`))),
+    tasks.err ? h("div", { class: "danger-text" }, tasks.err) : null);
+  if (tasks.list.length === 0) out.append(h("div", { class: "muted" }, "No task given yet."));
+  for (const k of tasks.list) {
+    const notes = [];
+    if (k.reworks) notes.push(`${k.reworks} rework${k.reworks === 1 ? "" : "s"}`);
+    if (k.handbacks) notes.push(`${k.handbacks} handback${k.handbacks === 1 ? "" : "s"}`);
+    if (k.state === "accepted" && !k.handbacks) notes.push("accepted, never handed back");
+    if (k.closed_seq) notes.push(`${k.state} #${k.closed_seq}`);
+    out.append(h("div", { class: "mail" },
+      h("div", { class: "head" }, h("span", { class: "seq" }, "#" + k.seq),
+        scope.dir ? h("span", { class: k.team_closed ? "muted" : "" }, k.team) : null,
+        h("b", {}, k.member), h("span", { class: "muted" }, "← " + k.from),
+        h("span", { class: "k-" + k.state }, word(k.state)),
+        h("span", { class: "when", title: new Date(k.at).toLocaleString() }, clock(k.at))),
+      h("div", {}, k.title || "(untitled)"),
+      notes.length ? h("div", { class: "muted" }, notes.join(" · ")) : null));
+  }
+  if (tasks.more) out.append(h("div", { class: "muted" }, "Older tasks left out."));
+  return out;
+}
+
 /** "14:02" today, "Sep 29 14:02" on an earlier day. */
 function clock(ms) {
   const t = new Date(ms), two = (n) => String(n).padStart(2, "0"), hm = `${two(t.getHours())}:${two(t.getMinutes())}`;
@@ -539,7 +615,7 @@ function render() {
 /** A selection not in the tab moves to its first member or solo (else its first line), as top does. */
 function keepSel() {
   if (items.some((i) => i.id === ui.sel)) return;
-  const first = items.find((i) => !i.toggle) || items[0];
+  const first = items.find((i) => !i.toggle && !i.dir) || items[0];
   ui.sel = first ? first.id : "";
   for (const el of document.querySelectorAll(".grid .r.item")) el.classList.toggle("sel", el.dataset.id === ui.sel);
 }
@@ -553,6 +629,7 @@ function select(id) {
   if (ui.side === "tail") pollTail();
   if (ui.side === "mail") pollMail();
   if (ui.side === "board") pollBoard();
+  if (ui.side === "tasks") pollTasks();
 }
 
 function move(d) {
@@ -686,6 +763,7 @@ $("tab-overview").onclick = () => { ui.side = "overview"; save(); renderSide(); 
 $("tab-tail").onclick = () => { ui.side = "tail"; save(); renderSide(); pollTail(); };
 $("tab-mail").onclick = () => { ui.side = "mail"; save(); renderSide(); pollMail(); };
 $("tab-board").onclick = () => { ui.side = "board"; save(); renderSide(); pollBoard(); };
+$("tab-tasks").onclick = () => { ui.side = "tasks"; save(); renderSide(); pollTasks(); };
 $("events-h").onclick = () => { ui.events = !ui.events; save(); renderBottom(); };
 $("notices-h").onclick = () => { ui.notices = !ui.notices; save(); renderBottom(); };
 
@@ -706,6 +784,7 @@ document.addEventListener("keydown", (e) => {
     t: () => (ui.side === "tail" ? $("tab-overview") : $("tab-tail")).click(),
     m: () => (ui.side === "mail" ? $("tab-overview") : $("tab-mail")).click(),
     b: () => (ui.side === "board" ? $("tab-overview") : $("tab-board")).click(),
+    a: () => (ui.side === "tasks" ? $("tab-overview") : $("tab-tasks")).click(),
     x: kill, M: () => openPicker(),
     e: () => $("events-h").click(), n: () => $("notices-h").click(),
   }[e.key];
@@ -716,6 +795,7 @@ render();
 poll();
 pollMail();
 pollBoard();
+pollTasks();
 </script>
 </body>
 </html>

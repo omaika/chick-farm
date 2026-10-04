@@ -297,6 +297,48 @@ func (e *env) logCmd(args []string) error {
 	return do(e, proto.VerbLog, a, func(w io.Writer, evs []core.Event) { e.printEvents(evs) })
 }
 
+// tasksCmd lists the tasks of a team, or of every team rooted at a directory (the admin verb tasks).
+func (e *env) tasksCmd(args []string) error {
+	fs := e.flags("tasks")
+	var a core.TasksArgs
+	fs.StringVar(&a.Team, "team", "", "a team (id or name)")
+	fs.StringVar(&a.Dir, "dir", "", "a project directory: every team rooted there (default: the current directory)")
+	pos, err := parse(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 0 {
+		return fmt.Errorf("%w: tasks takes no arguments", errUsage)
+	}
+	if a.Team == "" {
+		if a.Dir == "" {
+			a.Dir = "."
+		}
+		if a.Dir, err = filepath.Abs(a.Dir); err != nil {
+			return err
+		}
+	}
+	return do(e, proto.VerbTasks, a, func(w io.Writer, r core.TasksResult) {
+		if len(r.Tasks) == 0 {
+			fmt.Fprintln(w, "No tasks.")
+		}
+		for _, k := range r.Tasks {
+			notes := ""
+			if k.Reworks > 0 {
+				notes += " · " + view.Plural(k.Reworks, "rework")
+			}
+			if k.State == core.TaskAccepted && k.Handbacks == 0 {
+				notes += " · never handed back"
+			}
+			fmt.Fprintf(w, "#%d %s %s/%s <- %s %s%s: %s\n", k.Seq, clock(k.At), k.Team, k.Member, k.From,
+				strings.ReplaceAll(k.State, "_", " "), notes, k.Title)
+		}
+		if r.More {
+			fmt.Fprintln(w, "(older tasks left out)")
+		}
+	})
+}
+
 // mailCmd lists messages as the operator reads them (the admin verb mail): nothing is acked.
 func (e *env) mailCmd(args []string) error {
 	fs := e.flags("mail")

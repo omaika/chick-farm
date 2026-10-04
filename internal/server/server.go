@@ -441,7 +441,7 @@ func (s *server) handle(ctx context.Context, cn *conn, req proto.Request) proto.
 		// of an open team. The socket's 0600 mode is the boundary.
 		return call(req, func(a core.JoinAutoArgs) (any, error) { return s.eng.JoinAuto(ctx, a) })
 	case proto.VerbTeamUp, proto.VerbJoin, proto.VerbLog, proto.VerbRelease,
-		proto.VerbWhy, proto.VerbDoctor, proto.VerbLabels, proto.VerbTeamDown, proto.VerbTeamMigrate, proto.VerbGC, proto.VerbPs, proto.VerbTail, proto.VerbShutdown, proto.VerbAbort, proto.VerbKill, proto.VerbResume, proto.VerbModel, proto.VerbModels, proto.VerbMail:
+		proto.VerbWhy, proto.VerbDoctor, proto.VerbLabels, proto.VerbTeamDown, proto.VerbTeamMigrate, proto.VerbGC, proto.VerbPs, proto.VerbTail, proto.VerbShutdown, proto.VerbAbort, proto.VerbKill, proto.VerbResume, proto.VerbModel, proto.VerbModels, proto.VerbMail, proto.VerbTasks:
 		if !s.isAdmin(req.AdminToken) {
 			return errResponse(req.ID, s.unauthorized(req.Verb, "admin token required"))
 		}
@@ -506,6 +506,8 @@ func (s *server) handle(ctx context.Context, cn *conn, req proto.Request) proto.
 			return call(req, func(a core.LabelsArgs) (any, error) { return s.eng.Labels(ctx, a) })
 		case proto.VerbMail:
 			return call(req, func(a core.MailArgs) (any, error) { return s.eng.Mail(ctx, a) })
+		case proto.VerbTasks:
+			return call(req, func(a core.TasksArgs) (any, error) { return s.eng.Tasks(ctx, a) })
 		case proto.VerbTeamDown:
 			return call(req, func(a core.TeamDownArgs) (any, error) {
 				r, err := s.eng.TeamDown(ctx, a)

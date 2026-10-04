@@ -17,6 +17,11 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
   the incident still holds `escalate_after` later (default: the condition's duration; `max_rework`:
   at the next rework). An escalation to `notify` is a notice of kind `watch`. The built-in
   templates use them.
+- `piggery tasks` and a Tasks tab (`a`) in `web` list the tasks given in a team, or in every team
+  of a project directory (a directory's line in `web` is selectable for it), newest first, with
+  what became of each: open, handed back, accepted, dropped, or replaced by a next task before
+  anyone closed it, and the reworks it took. A task accepted without ever being handed back says
+  so.
 - `web` has a Board tab (`b`): the live pins of the selected row's team, whole, oldest first, so
   a lane's plan is read where the Overview only lists its first line. `piggery mail --team T
   --pins` prints the same.
