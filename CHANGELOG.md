@@ -21,6 +21,10 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
   or `aborted`, with the branch, what it went into and a note. Each is an event; `ps`/`top` show a
   team's merges in its Overview, and a team with an open conflict is flagged until it is recorded
   resolved or aborted. The `slp` prompts ask the Lead and the Supervisor to record theirs.
+- `spawn.refused_commands` in `config.yaml` (default `[paseo]`): commands a worker's shell must not
+  start. Each is a failing command first on every worker's `PATH` (`~/.piggery/bin`), and a Claude
+  worker's settings deny it too. `paseo` is refused because it starts agents outside piggery's
+  limits, routing and view. `[]` turns it off.
 - `piggery web` shows `top` in the browser at http://127.0.0.1:4125 (loopback only): the same
   rows, tabs, Overview, Tail, events and notices, live, with kill and the model picker, and a Mail
   tab: a participant's or a team's messages and where each stands. Reading acks nothing.

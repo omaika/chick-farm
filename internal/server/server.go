@@ -165,7 +165,12 @@ func Run(ctx context.Context, cfg Config) error {
 		if err := s.eng.UnbatchedTurn(context.Background(), participantID, runID, event); err != nil {
 			s.log.Warn("turn", "participant", participantID, "run", runID, "event", event, "err", err)
 		}
-	}}
+	}, Refused: settings.RefusedCommands}
+	// The refused commands first on every worker's PATH; a failure leaves workers without them.
+	if err := local.WriteRefused(cfg.Dir, settings.RefusedCommands); err != nil {
+		log.Warn("refused commands", "err", err)
+		opts.Refused = nil
+	}
 	// Every built-in runtime driver; a worker runs on the one its harness names.
 	drivers := local.Builtin(cfg.Dir, opts)
 	// The built-in templates into ~/.piggery/templates, never over the user's edits.

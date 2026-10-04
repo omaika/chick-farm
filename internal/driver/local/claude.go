@@ -84,7 +84,7 @@ func NewClaude(dir, self string, opts Options) *Driver {
 	if self == "" {
 		self, _ = os.Executable()
 	}
-	return newWith(dir, opts, &claudeCodec{dir: dir, self: self})
+	return newWith(dir, opts, &claudeCodec{dir: dir, self: self, refused: opts.Refused})
 }
 
 // ClaudeProfilePath is where the Claude worker profile is read from.
@@ -92,6 +92,7 @@ func ClaudeProfilePath(dir string) string { return filepath.Join(dir, "harness",
 
 type claudeCodec struct {
 	dir, self string
+	refused   []string // Options.Refused: denied in the worker's settings
 
 	mu    sync.Mutex
 	state map[*worker]*claudeRun
@@ -253,6 +254,11 @@ func (c *claudeCodec) writeSettings(s core.Spec, blacklist []string) (string, er
 		}
 	}
 	set["enabledPlugins"] = off
+	// The user's shell profile may put the real command first on PATH again in Claude's Bash
+	// tool: the deny rules hold whatever PATH the shell ends up with.
+	if deny := claudeRefusals(c.refused); len(deny) > 0 {
+		set["permissions"] = map[string]any{"deny": deny}
+	}
 	b, _ := json.MarshalIndent(set, "", " ")
 	path := filepath.Join(dir, "settings.json")
 	if err := os.WriteFile(path, b, 0o600); err != nil {

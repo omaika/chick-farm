@@ -34,6 +34,8 @@ type Settings struct {
 	// AllowedRoots are directories (absolute) outside a team's root where a worker may be spawned;
 	// the team root and its git worktrees always are.
 	AllowedRoots []string
+	// RefusedCommands are commands a worker's shell must not start (local.Options.Refused).
+	RefusedCommands []string
 	// Prompts are the Human's shared prompt files by role (see PromptEntry), without the entries
 	// that cannot work (CheckPrompts drops more at daemon start). Warnings say what was left out:
 	// the daemon logs them; a mistake there never stops it.
@@ -51,7 +53,7 @@ const gcEvery = 24 * time.Hour
 // defaultSettings are the settings with no config file, and the values setup writes.
 func defaultSettings() Settings {
 	return Settings{GCClosedAfter: 14 * 24 * time.Hour, GCArchiveKeep: 30 * 24 * time.Hour, Harness: local.Harness, UpdateCheck: true,
-		Columns: slices.Clone(DisplayColumns), AllowedRoots: []string{}, Prompts: []PromptEntry{}}
+		Columns: slices.Clone(DisplayColumns), AllowedRoots: []string{}, RefusedCommands: []string{"paseo"}, Prompts: []PromptEntry{}}
 }
 
 // configFile is the settings file's keys (every key LoadSettings takes).
@@ -65,7 +67,8 @@ type configFile struct {
 		Columns *[]string `yaml:"columns"`
 	} `yaml:"display"`
 	Spawn struct {
-		AllowedRoots *[]string `yaml:"allowed_roots"`
+		AllowedRoots    *[]string `yaml:"allowed_roots"`
+		RefusedCommands *[]string `yaml:"refused_commands"`
 	} `yaml:"spawn"`
 	Update struct {
 		Check *bool `yaml:"check"`
@@ -118,6 +121,14 @@ func LoadSettings(dir string) (Settings, error) {
 		}
 		set.AllowedRoots = *roots
 	}
+	if cmds := raw.Spawn.RefusedCommands; cmds != nil {
+		for _, c := range *cmds {
+			if c == "" || strings.ContainsAny(c, `/\ `) || strings.HasPrefix(c, ".") {
+				return set, fmt.Errorf("%s: spawn.refused_commands: %q: want a command name", ConfigPath(dir), c)
+			}
+		}
+		set.RefusedCommands = *cmds
+	}
 	if raw.Update.Check != nil {
 		set.UpdateCheck = *raw.Update.Check
 	}
@@ -157,6 +168,8 @@ func configKeys() []configKey {
 			"columns top and ps show, in order; remove one to hide it (name is always shown); read on every run, no restart"},
 		{"spawn.allowed_roots", "[" + strings.Join(d.AllowedRoots, ", ") + "]",
 			"absolute directories outside a team's root where a worker may be spawned with a cwd (the root and its repo's git worktrees always may)"},
+		{"spawn.refused_commands", "[" + strings.Join(d.RefusedCommands, ", ") + "]",
+			"commands a worker's shell must not start: each is a failing command first on its PATH, and a deny rule for a Claude worker (paseo: agents only piggery starts); a guard against mistakes, not a wall"},
 		{"update.check", "true", "ask GitHub once a day whether a newer piggery release is out, and say so in top, setup and update --check; nothing is installed (a dev build never asks)"},
 		{"prompts", "[]", "your prompt files by role, added to those roles' cards: - {file: rules/code.md, roles: [executor, solo, supervisor-executor/supervisor]} (file: relative to this directory or absolute; the file is read at each session start, the list needs a restart)"},
 	}
