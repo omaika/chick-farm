@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>piggery</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐷</text></svg>">
+<style>
+  :root {
+    --bg: #fbfaf9; --panel: #ffffff; --line: #e6e3df; --fg: #1f1d1b; --muted: #77716b; --sel: #f2eee9;
+    --accent: #2f6fdb; --working: #1f9d55; --idle: #77716b; --waiting: #c27c0e; --gone: #b3ada7; --danger: #d0402b;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161514; --panel: #1d1c1a; --line: #2e2c29; --fg: #ece8e3; --muted: #9a938b; --sel: #2a2825;
+      --accent: #6aa0ff; --working: #4cc77f; --idle: #9a938b; --waiting: #e3a33a; --gone: #625d58; --danger: #ef6a55;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 13px/1.45 system-ui, -apple-system, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  button { font: inherit; color: inherit; background: none; border: 1px solid var(--line); border-radius: 6px; padding: 2px 10px; cursor: pointer; }
+  button:hover { background: var(--sel); }
+  button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+  button.on { background: var(--sel); border-color: var(--muted); }
+  .muted { color: var(--muted); }
+  .warn { color: var(--waiting); }
+  .danger-text { color: var(--danger); }
+  .s-working { color: var(--working); } .s-idle { color: var(--idle); } .s-waiting { color: var(--waiting); } .s-gone { color: var(--gone); }
+
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; padding: 10px 16px 6px; }
+  header .brand { font-weight: 600; font-size: 15px; }
+  header .counts { display: flex; gap: 14px; font-variant-numeric: tabular-nums; }
+  header .right { margin-left: auto; }
+  #notes { padding: 0 16px; }
+  #notes div { padding: 2px 0; }
+  nav { display: flex; gap: 2px; padding: 4px 16px 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  nav button { border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 6px 12px; white-space: nowrap; }
+  nav button.on { background: none; border-bottom-color: var(--accent); font-weight: 600; }
+  nav .count { color: var(--muted); margin-left: 4px; font-variant-numeric: tabular-nums; }
+
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 40%); }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+  #list { overflow: auto; padding: 4px 8px 16px; }
+  #side { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+
+  .grid { display: grid; font-family: var(--mono); font-size: 12px; }
+  .grid > .r { display: contents; }
+  .grid > .r > * { padding: 3px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid transparent; }
+  .grid > .r.item > * { cursor: pointer; }
+  .grid > .r.item:hover > * { background: color-mix(in srgb, var(--sel) 60%, transparent); }
+  .grid > .r.sel > * { background: var(--sel); }
+  .grid > .r.sel > :first-child { box-shadow: inset 2px 0 var(--accent); }
+  .grid > .r.dim > * { color: var(--gone); }
+  .grid .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .grid .th { color: var(--muted); font-size: 11px; position: sticky; top: 0; background: var(--bg); z-index: 1; }
+  .grid .dir { grid-column: 1 / -1; color: var(--muted); padding-top: 12px; font-family: system-ui, sans-serif; }
+  .grid .full { grid-column: 1 / -1; }
+  .grid .team { font-weight: 600; }
+  .chev { display: inline-block; width: 1.2em; color: var(--muted); }
+  .tag { font-size: 10px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 6px; color: var(--muted); }
+
+  .sidetabs { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .sidetabs .grow { flex: 1; }
+  #sidebody { flex: 1; min-height: 0; overflow: auto; padding: 12px; }
+  .detail h2 { font-size: 15px; margin: 0 0 2px; }
+  .pill { display: inline-block; font-size: 11px; border-radius: 99px; padding: 0 8px; border: 1px solid currentColor; margin: 4px 0 8px; }
+  .facts { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; margin-top: 8px; }
+  .facts .k { color: var(--muted); }
+  .facts .v { word-break: break-word; }
+  .pick { color: var(--accent); cursor: pointer; }
+  .task { border-left: 2px solid var(--line); padding: 2px 0 2px 10px; margin: 6px 0 4px; }
+  .tail { font-family: var(--mono); font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+  .tail div { padding: 1px 0; }
+  .t-tool { color: var(--accent); } .t-result { color: var(--working); } .t-error { color: var(--danger); }
+  .t-warning { color: var(--waiting); } .t-rule { color: var(--muted); border-top: 1px dashed var(--line); margin-top: 4px; }
+  .t-user { color: var(--fg); font-weight: 600; } .t-rest { color: var(--muted); }
+  .mail { border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .mail .head { display: flex; gap: 8px; align-items: baseline; font-size: 12px; }
+  .mail .head .seq { font-family: var(--mono); color: var(--muted); }
+  .mail .head .when { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .mail .body { white-space: pre-wrap; word-break: break-word; margin-top: 4px; line-height: 1.45; max-height: calc(1.45em * 5); overflow: hidden; cursor: pointer; position: relative; }
+  .mail .body.open { max-height: none; }
+  .mail .body.long:not(.open)::after { content: "…more"; position: absolute; right: 0; bottom: 0; background: var(--panel); color: var(--accent); padding-left: 6px; }
+  .m-pending { color: var(--waiting); } .m-delivered { color: var(--accent); } .m-acked, .m-board { color: var(--muted); } .m-held { color: var(--danger); }
+  .mailbar { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+
+  footer { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); background: var(--panel); max-height: 34vh; }
+  footer section { min-width: 0; overflow: auto; padding: 6px 16px 8px; }
+  footer section + section { border-left: 1px solid var(--line); }
+  footer h3 { font-size: 12px; margin: 0 0 4px; cursor: pointer; user-select: none; }
+  .ev, .no { font-family: var(--mono); font-size: 12px; display: flex; gap: 10px; white-space: nowrap; }
+  .ev .t, .no .t { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+  .ev span, .no span { overflow: hidden; text-overflow: ellipsis; }
+  .ev .tone-warning { color: var(--waiting); } .ev .tone-danger { color: var(--danger); }
+  .keys { color: var(--muted); font-size: 11px; padding: 4px 16px; border-top: 1px solid var(--line); }
+  .keys kbd { font-family: var(--mono); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+  #toast { position: fixed; bottom: 48px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 6px 14px; border-radius: 6px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  .empty { padding: 24px 16px; color: var(--muted); }
+
+  dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--fg); padding: 16px; width: min(520px, 92vw); }
+  dialog::backdrop { background: rgb(0 0 0 / .35); }
+  dialog h2 { font-size: 14px; margin: 0 0 10px; }
+  dialog input { width: 100%; font: inherit; font-family: var(--mono); padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+  #models { margin: 8px 0; max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-size: 12px; }
+  #models div { padding: 3px 8px; cursor: pointer; }
+  #models div.on { background: var(--sel); box-shadow: inset 2px 0 var(--accent); }
+  #models div.cur::after { content: "  (now)"; color: var(--muted); }
+  .levels { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+  .row-end { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; align-items: center; }
+  .row-end .note { margin-right: auto; color: var(--danger); }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">🐷 piggery</span>
+  <span id="daemon" class="muted"></span>
+  <span id="counts" class="counts"></span>
+  <span id="fresh" class="right muted"></span>
+</header>
+<div id="notes"></div>
+<nav id="tabs"></nav>
+<main>
+  <div id="list"></div>
+  <aside id="side">
+    <div class="sidetabs">
+      <button id="tab-overview">Overview</button>
+      <button id="tab-tail">Tail</button>
+      <button id="tab-mail">Mail</button>
+      <span class="grow"></span>
+      <button id="act-model" hidden>Model ▾</button>
+      <button id="act-kill" class="danger" hidden>Kill</button>
+    </div>
+    <div id="sidebody"></div>
+  </aside>
+</main>
+<footer>
+  <section><h3 id="notices-h"></h3><div id="notices"></div></section>
+  <section><h3 id="events-h"></h3><div id="events"></div></section>
+</footer>
+<div class="keys">
+  <kbd>↑</kbd><kbd>↓</kbd> select · <kbd>←</kbd><kbd>→</kbd> tab · <kbd>enter</kbd> open/close · <kbd>t</kbd> overview/tail · <kbd>m</kbd> mail ·
+  <kbd>x</kbd> kill · <kbd>M</kbd> model · <kbd>e</kbd> events · <kbd>n</kbd> notices
+</div>
+<div id="toast"></div>
+<dialog id="picker">
+  <h2 id="pick-title"></h2>
+  <input id="pick-input" placeholder="filter models (or type one)" autocomplete="off" spellcheck="false">
+  <div id="models"></div>
+  <div class="levels"><span class="muted">thinking</span><span id="levels"></span></div>
+  <div class="row-end"><span id="pick-note" class="note"></span><button id="pick-cancel">Cancel</button><button id="pick-apply" class="on">Apply</button></div>
+</dialog>
+<script>
+"use strict";
+// The page of `piggery web`: what top shows, drawn from `ps --view` (the snapshot decides every row,
+// word, default fold and allowed action; the page only folds, filters by tab and draws).
+const TOKEN = "{{TOKEN}}";
+const EVERY = 1000; // top refreshes every second
+const CLOSED = "\u0000closed";
+const $ = (id) => document.getElementById(id);
+
+/** An element: tag, attributes (on* are listeners, class, hidden...), children (strings are text, never HTML). */
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "class") el.className = v;
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat(Infinity)) if (c !== null && c !== undefined && c !== false) el.append(c instanceof Node ? c : String(c));
+  return el;
+}
+
+// What the user chose, kept in the browser like top keeps cache/top.json.
+const ui = Object.assign({ tab: "", sel: "", side: "overview", teams: {}, gone: {}, events: false, notices: false },
+  JSON.parse(localStorage.getItem("piggery-web") || "{}"));
+const save = () => localStorage.setItem("piggery-web", JSON.stringify(ui));
+
+let view = null, failure = "", readAt = 0, items = [], tailLines = null, tailFor = "", tailErr = "";
+
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? { headers: { "X-Piggery-Token": TOKEN } }
+    : { method: "POST", headers: { "X-Piggery-Token": TOKEN, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const out = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+  if (!r.ok) throw new Error(out.error || `HTTP ${r.status}`);
+  return out;
+}
+
+function toast(text) {
+  const t = $("toast");
+  t.textContent = text;
+  t.classList.add("show");
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.classList.remove("show"), 3000);
+}
+
+// ---- the snapshot ----
+
+/** Every row of the snapshot (All and Closed), by id. */
+function rowIndex() {
+  const out = new Map();
+  for (const list of [view.all, view.closed]) for (const d of list.dirs) for (const b of d.blocks) for (const r of b.rows) out.set(r.id, r);
+  return out;
+}
+
+/** The directories the tab lists: All, Closed, or one team's blocks. */
+function dirsOfTab() {
+  if (ui.tab === "") return view.all.dirs;
+  if (ui.tab === CLOSED) return view.closed.dirs;
+  const tabsOf = (b) => (b.head ? b.head.tabs : b.rows[0] && b.rows[0].tabs) || [];
+  return view.all.dirs.map((d) => ({ ...d, blocks: d.blocks.filter((b) => tabsOf(b).includes(ui.tab)) })).filter((d) => d.blocks.length > 0);
+}
+
+const teamOpen = (id, byDefault) => ui.teams[id] ?? byDefault;
+function toggleTeam(id, byDefault) {
+  const open = !teamOpen(id, byDefault);
+  if (open === byDefault) delete ui.teams[id]; else ui.teams[id] = open;
+  save();
+}
+function toggleGone(id) {
+  if (ui.gone[id]) delete ui.gone[id]; else ui.gone[id] = true;
+  save();
+}
+
+/** The cells of a row after its name, in the configured columns' order. */
+function cells(row) {
+  return view.columns.map((c) => {
+    switch (c) {
+      case "state": return h("div", { class: "s-" + row.status }, row.state_text || "");
+      case "ctx": case "turns": case "age": case "since": return h("div", { class: "num" }, row[c] || "-");
+      default: return h("div", {}, row[c] || "-");
+    }
+  });
+}
+
+/**
+ * The list as top draws it: per directory, a team's line then its member tree (gone members folded into
+ * one line), a team listed as one line (closed, or every member gone), solos. `items` gets the
+ * selectable ids in order, each with what enter does on it.
+ */
+function renderList() {
+  const list = $("list");
+  items = [];
+  const dirs = dirsOfTab();
+  if (dirs.length === 0) {
+    list.replaceChildren(h("div", { class: "empty" }, ui.tab === CLOSED ? "No closed team." : "Nothing runs yet. Open an agent session, or ask one to make a team."));
+    return;
+  }
+  const grid = h("div", { class: "grid", style: `grid-template-columns: minmax(180px, 2.4fr) ${view.columns.map((c) => (["ctx", "turns", "age", "since"].includes(c) ? "max-content" : "minmax(60px, 1fr)")).join(" ")}` });
+  grid.append(h("div", { class: "r" }, h("div", { class: "th" }, "NAME"), view.columns.map((c) => h("div", { class: "th" + (["ctx", "turns", "age", "since"].includes(c) ? " num" : "") }, c.toUpperCase()))));
+  const line = (id, toggle, nameEl, rest, extra) => {
+    items.push({ id, toggle });
+    const el = h("div", { class: `r item${id === ui.sel ? " sel" : ""}${extra ? " " + extra : ""}`, "data-id": id,
+      onclick: () => { if (id === ui.sel && toggle) toggle(); select(id); } }, nameEl, rest);
+    grid.append(el);
+  };
+  const chev = (open) => h("span", { class: "chev" }, open ? "▾" : "▸");
+  const member = (r) => line(r.id, null, h("div", { title: r.name },
+    h("span", { class: "chev" }), h("span", { class: "muted" }, r.prefix || ""), r.name, r.gate ? h("span", { class: "tag" }, "gate") : null), cells(r), r.dim ? "dim" : "");
+  for (const d of dirs) {
+    grid.append(h("div", { class: "dir", title: d.path }, "📁 " + d.label));
+    for (const b of d.blocks) {
+      if (b.head) {
+        const hd = b.head, open = teamOpen(hd.id, hd.open);
+        const toggle = () => { toggleTeam(hd.id, hd.open); render(); };
+        line(hd.detail, toggle, h("div", { class: "full team" }, chev(open), hd.name,
+          hd.flags && hd.flags.length ? h("span", { class: "warn" }, "  " + hd.flags.join(" · ")) : null,
+          !open && hd.counts && hd.counts.length ? h("span", { class: "muted" }, "  " + hd.counts.join(" · ")) : null), []);
+        if (!open) continue;
+        const goneOpen = !!ui.gone[hd.id];
+        for (const r of b.rows) {
+          if (r.folded && !goneOpen) continue;
+          if (r.kind === "gone") {
+            line(r.id, () => { toggleGone(hd.id); render(); }, h("div", {}, h("span", { class: "chev" }), chev(goneOpen), r.name), cells(r), "dim");
+          } else member(r);
+        }
+        if (b.no_members) grid.append(h("div", { class: "full muted", style: "padding-left: 28px" }, "No members yet. Open an agent session in its directory and ask the gate to admit it."));
+        continue;
+      }
+      const [first, ...rest] = b.rows;
+      if (first && first.kind === "team") {
+        const id = first.team || first.id, open = teamOpen(id, first.open === true);
+        const toggle = () => { toggleTeam(id, first.open === true); render(); };
+        line(first.id, toggle, h("div", { class: "team" }, chev(open), first.name, first.closed ? h("span", { class: "tag" }, first.closed) : null), cells(first), "dim");
+        if (open) rest.forEach(member);
+        continue;
+      }
+      b.rows.forEach(member);
+    }
+  }
+  list.replaceChildren(grid);
+}
+
+function renderHeader() {
+  const d = view.daemon || {};
+  $("daemon").textContent = `pid ${d.pid} · up ${d.age}${d.version ? " · " + d.version : ""}`;
+  const s = view.summary;
+  $("counts").replaceChildren(
+    h("span", { class: "s-working" }, `● ${s.working} working`),
+    h("span", { class: "s-idle" }, `○ ${s.idle} idle`),
+    h("span", { class: "s-waiting" }, `◐ ${s.waiting || 0} waiting`),
+    h("span", {}, `${s.teams} team${s.teams === 1 ? "" : "s"}`),
+    h("span", { class: s.held ? "warn" : "muted" }, `held ${s.held}`),
+    h("span", { class: s.unacked ? "warn" : "muted" }, `unacked ${s.unacked}`));
+  const notes = [];
+  if (failure) notes.push(h("div", { class: "danger-text" }, (view ? "Showing the last read: " : "") + failure));
+  for (const n of [d.update, d.outdated, d.version_mismatch && d.version_notes[0]]) if (n) notes.push(h("div", { class: "warn" }, n));
+  $("notes").replaceChildren(...notes);
+  $("tabs").replaceChildren(...view.tabs.map((t) => h("button", { class: t.key === ui.tab ? "on" : "", onclick: () => switchTab(t.key) },
+    t.label, h("span", { class: "count" }, t.count))));
+}
+
+function renderFresh() {
+  if (!readAt) return;
+  const s = Math.round((Date.now() - readAt) / 1000);
+  $("fresh").textContent = failure ? "daemon unreachable" : s <= 2 ? "live" : `updated ${s}s ago`;
+}
+
+/** The selected row's Overview: ps --view's detail of it. */
+function overview(sel, row) {
+  const d = view.details[sel];
+  if (!d) return h("div", { class: "muted" }, "Select a row.");
+  const out = h("div", { class: "detail" }, h("h2", {}, d.title, d.sub ? h("span", { class: "muted", style: "font-weight: normal" }, "  " + d.sub) : null));
+  if (d.state && row) out.append(h("span", { class: "pill s-" + row.status }, row.state_text || d.state));
+  if (d.task) {
+    const t = d.task;
+    out.append(h("div", { class: "task" }, h("div", {}, t.title), h("div", { class: "muted" }, t.from),
+      t.chain ? h("div", { class: "muted" }, t.chain) : null,
+      t.mail ? h("div", { class: "warn" }, `${t.mail.head} ${t.mail.title} ${t.mail.tail}`) : null));
+  }
+  out.append(h("div", { class: "facts" }, d.facts.map((f) => [
+    h("div", { class: "k" }, f.label),
+    h("div", { class: "v" + (f.muted ? " muted" : "") },
+      f.pick ? h("span", { class: "pick", onclick: () => openPicker(sel) }, f.value + " ▾") : f.value,
+      f.note ? h("span", { class: "muted" }, "  " + f.note) : null)])));
+  return out;
+}
+
+function renderSide() {
+  const row = view ? rowIndex().get(ui.sel) : null;
+  const acts = (row && row.actions) || {};
+  $("tab-overview").className = ui.side === "overview" ? "on" : "";
+  $("tab-tail").className = ui.side === "tail" ? "on" : "";
+  $("tab-tail").disabled = !acts.tail;
+  $("tab-mail").className = ui.side === "mail" ? "on" : "";
+  $("tab-mail").disabled = !mailScope(ui.sel);
+  $("act-kill").hidden = !acts.kill;
+  $("act-model").hidden = !acts.pick;
+  const body = $("sidebody");
+  if (!view) return body.replaceChildren();
+  if (ui.side === "tail" && acts.tail) {
+    const atEnd = body.scrollHeight - body.scrollTop - body.clientHeight < 24;
+    if (tailFor !== ui.sel || tailLines === null) body.replaceChildren(h("div", { class: "muted" }, tailErr || "reading…"));
+    else if (tailLines.length === 0) body.replaceChildren(h("div", { class: "muted" }, "(nothing yet)"));
+    else body.replaceChildren(h("div", { class: "tail" }, tailLines.map((l) => h("div", { class: "t-" + l.kind }, l.text, l.rest ? h("span", { class: "t-rest" }, l.rest) : null)),
+      tailErr ? h("div", { class: "t-error" }, tailErr) : null));
+    if (atEnd) body.scrollTop = body.scrollHeight;
+    return;
+  }
+  if (ui.side === "mail" && mailScope(ui.sel)) {
+    body.replaceChildren(mailbox());
+    return;
+  }
+  body.replaceChildren(overview(ui.sel, row));
+}
+
+// ---- mail: the selected participant's messages, sent and received, or a team line's ----
+
+const TEAM_LINE = "\u0000team:", GONE_LINE = "\u0000gone:";
+let mail = { key: "", messages: null, older: [], more: false, err: "" };
+const mailOpen = new Set(); // the seqs whose body is shown whole
+
+/** What the Mail tab lists for id: a member's or a solo's mail, or a team's (its line or its gone line). */
+function mailScope(id) {
+  const row = view && rowIndex().get(id);
+  if (row && (row.kind === "member" || row.kind === "solo")) return { participant: row.id };
+  for (const p of [TEAM_LINE, GONE_LINE]) if (id.startsWith(p)) return { team: id.slice(p.length) };
+  if (row && row.team) return { team: row.team };
+  return null;
+}
+const mailKey = (scope) => (scope ? JSON.stringify(scope) : "");
+
+function mailQuery(scope, before) {
+  const q = new URLSearchParams(scope);
+  if (before) q.set("before", before);
+  return "/api/mail?" + q;
+}
+
+async function pollMail() {
+  const scope = ui.side === "mail" && view ? mailScope(ui.sel) : null;
+  if (!scope) return;
+  const key = mailKey(scope);
+  if (key !== mail.key) mail = { key, messages: null, older: [], more: false, err: "" };
+  try {
+    const r = await api(mailQuery(scope));
+    if (key !== mail.key) return;
+    mail.messages = r.messages;
+    if (mail.older.length === 0) mail.more = r.more;
+    mail.err = "";
+  } catch (e) {
+    if (key === mail.key) mail.err = /unknown verb mail/.test(e.message) ? `${e.message} (the daemon is older than this page: piggery restart)` : e.message;
+  }
+  if (key === mail.key) renderSide();
+}
+setInterval(pollMail, 2 * EVERY);
+
+async function mailOlder() {
+  const scope = mailScope(ui.sel), shown = mailShown();
+  if (!scope || shown.length === 0) return;
+  try {
+    const r = await api(mailQuery(scope, shown[shown.length - 1].seq));
+    mail.older = mail.older.concat(r.messages);
+    mail.more = r.more;
+  } catch (e) {
+    mail.err = e.message;
+  }
+  renderSide();
+}
+
+/** The newest page, then what "older" loaded below it. */
+function mailShown() {
+  const fresh = mail.messages || [];
+  const low = fresh.length ? fresh[fresh.length - 1].seq : Infinity;
+  return fresh.concat(mail.older.filter((m) => m.seq < low));
+}
+
+/** "14:02" today, "Sep 29 14:02" on an earlier day. */
+function clock(ms) {
+  const t = new Date(ms), two = (n) => String(n).padStart(2, "0"), hm = `${two(t.getHours())}:${two(t.getMinutes())}`;
+  return t.toDateString() === new Date().toDateString() ? hm : `${t.toLocaleString("en-US", { month: "short" })} ${t.getDate()} ${hm}`;
+}
+
+function mailbox() {
+  if (mail.key !== mailKey(mailScope(ui.sel)) || mail.messages === null) return h("div", { class: mail.err ? "danger-text" : "muted" }, mail.err || "reading…");
+  const shown = mailShown();
+  const counts = {};
+  for (const m of shown) counts[m.state] = (counts[m.state] || 0) + 1;
+  const out = h("div", {},
+    h("div", { class: "mailbar muted" }, `${shown.length}${mail.more ? "+" : ""} message${shown.length === 1 ? "" : "s"}`,
+      ...["pending", "delivered", "held"].filter((k) => counts[k]).map((k) => h("span", { class: "m-" + k }, `${counts[k]} ${k}`))),
+    mail.err ? h("div", { class: "danger-text" }, mail.err) : null);
+  if (shown.length === 0) out.append(h("div", { class: "muted" }, "No mail yet."));
+  for (const m of shown) {
+    const open = mailOpen.has(m.seq), long = m.body.length > 400 || m.body.split("\n").length > 5;
+    out.append(h("div", { class: "mail" },
+      h("div", { class: "head" }, h("span", { class: "seq" }, "#" + m.seq), h("b", {}, m.from), "→", h("b", {}, m.to),
+        m.kind ? h("span", { class: "tag" }, m.kind) : null, m.op ? h("span", { class: "tag" }, m.op) : null,
+        h("span", { class: "m-" + m.state, title: m.held || "" }, m.state),
+        h("span", { class: "when", title: new Date(m.created_at).toLocaleString() }, clock(m.created_at))),
+      m.reply_to ? h("div", { class: "muted" }, `↩ #${m.reply_to}`) : null,
+      m.held ? h("div", { class: "m-held" }, `held: ${m.held}`) : null,
+      h("div", { class: `body${open ? " open" : ""}${long ? " long" : ""}`, onclick: () => { open ? mailOpen.delete(m.seq) : mailOpen.add(m.seq); renderSide(); } }, m.body)));
+  }
+  if (mail.more) out.append(h("div", { style: "padding: 8px 0" }, h("button", { onclick: mailOlder }, "Older")));
+  return out;
+}
+
+function renderBottom() {
+  const ev = view.events || [], no = view.notices || [];
+  $("events-h").textContent = `${ui.events ? "▾" : "▸"} Events · ${ev.length}`;
+  $("notices-h").textContent = `${ui.notices ? "▾" : "▸"} Notices · ${no.length}`;
+  $("events").replaceChildren(...(ui.events ? ev : ev.slice(0, 1)).map((e) => h("div", { class: "ev" },
+    h("span", { class: "t" }, e.time), h("span", {}, e.who || "-"), h("span", { class: "tone-" + e.tone }, e.type), e.target ? h("span", { class: "muted" }, e.target) : null)));
+  $("notices").replaceChildren(...(ui.notices ? no : no.slice(0, 1)).map((n) => h("div", { class: "no", title: n.body },
+    h("span", { class: "t" }, n.age), h("span", { class: "warn" }, n.kind), h("span", { class: "muted" }, n.where), h("span", {}, n.body))));
+  if (no.length === 0) $("notices").replaceChildren(h("div", { class: "muted" }, "none"));
+}
+
+function render() {
+  if (!view) {
+    $("list").replaceChildren(h("div", { class: failure ? "empty danger-text" : "empty" }, failure || "Reading the daemon…"));
+    renderFresh();
+    return;
+  }
+  if (!view.tabs.some((t) => t.key === ui.tab)) ui.tab = ""; // a tab that went away falls back to All
+  renderHeader();
+  renderList();
+  keepSel();
+  renderSide();
+  renderBottom();
+  renderFresh();
+}
+
+// ---- selection, tabs, polling ----
+
+/** A selection not in the tab moves to its first member or solo (else its first line), as top does. */
+function keepSel() {
+  if (items.some((i) => i.id === ui.sel)) return;
+  const first = items.find((i) => !i.toggle) || items[0];
+  ui.sel = first ? first.id : "";
+  for (const el of document.querySelectorAll(".grid .r.item")) el.classList.toggle("sel", el.dataset.id === ui.sel);
+}
+
+function select(id) {
+  if (id !== ui.sel) { ui.sel = id; tailLines = null; tailErr = ""; save(); }
+  for (const el of document.querySelectorAll(".grid .r.item")) el.classList.toggle("sel", el.dataset.id === ui.sel);
+  const el = document.querySelector(".grid .r.sel > *");
+  if (el) el.scrollIntoView({ block: "nearest" });
+  renderSide();
+  if (ui.side === "tail") pollTail();
+  if (ui.side === "mail") pollMail();
+}
+
+function move(d) {
+  if (items.length === 0) return;
+  const i = items.findIndex((x) => x.id === ui.sel);
+  select(items[Math.min(Math.max(i < 0 ? 0 : i + d, 0), items.length - 1)].id);
+}
+
+function switchTab(key) {
+  ui.tab = key;
+  save();
+  render();
+}
+
+async function poll() {
+  try {
+    view = await api("/api/view");
+    failure = "";
+  } catch (e) {
+    failure = e.message;
+  }
+  readAt = Date.now();
+  render();
+  setTimeout(poll, EVERY);
+}
+
+async function pollTail() {
+  const id = ui.sel;
+  const row = view && rowIndex().get(id);
+  if (ui.side !== "tail" || !row || !(row.actions || {}).tail) return;
+  try {
+    const r = await api(`/api/tail?id=${encodeURIComponent(id)}&n=100`);
+    if (id === ui.sel) { tailLines = r.lines; tailFor = id; tailErr = ""; }
+  } catch (e) {
+    if (id === ui.sel) { tailErr = e.message; tailFor = id; }
+  }
+  if (id === ui.sel) renderSide();
+}
+setInterval(pollTail, EVERY);
+setInterval(renderFresh, 1000);
+
+// ---- actions: kill, model picker ----
+
+async function kill() {
+  const row = view && rowIndex().get(ui.sel);
+  if (!row || !(row.actions || {}).kill) return toast(row ? `${row.name} cannot be killed from here` : "select a worker");
+  if (!confirm(`kill ${row.name}?`)) return;
+  try {
+    await api("/api/kill", { target: row.id });
+    toast(`killed ${row.name}`);
+  } catch (e) {
+    toast(`kill ${row.name}: ${e.message}`);
+  }
+}
+
+const pick = { id: "", name: "", models: [], levels: [], sel: -1, level: "", cur: "", noList: "" };
+
+function filtered() {
+  const q = $("pick-input").value.trim().toLowerCase();
+  if (!q) return pick.models;
+  // every typed character in order (a fuzzy match), contiguous matches first
+  const sub = (m) => { let i = 0; for (const ch of m.toLowerCase()) if (ch === q[i]) i++; return i === q.length; };
+  return pick.models.filter(sub).sort((a, b) => (b.toLowerCase().includes(q) ? 1 : 0) - (a.toLowerCase().includes(q) ? 1 : 0));
+}
+
+function renderPicker() {
+  const list = filtered();
+  pick.sel = Math.min(pick.sel, list.length - 1);
+  $("models").hidden = !!pick.noList;
+  $("models").replaceChildren(...list.map((m, i) => h("div", { class: (i === pick.sel ? "on " : "") + (m === pick.cur ? "cur" : ""),
+    onclick: () => { pick.sel = i; renderPicker(); }, ondblclick: () => { pick.sel = i; applyPick(); } }, m)));
+  const on = $("models").querySelector(".on");
+  if (on) on.scrollIntoView({ block: "nearest" });
+  $("levels").replaceChildren(...pick.levels.map((l) => h("button", { class: l === pick.level ? "on" : "",
+    onclick: () => { pick.level = pick.level === l ? "" : l; renderPicker(); } }, l)));
+}
+
+async function openPicker(id) {
+  const row = view && rowIndex().get(id || ui.sel);
+  if (!row || !(row.actions || {}).pick) return;
+  Object.assign(pick, { id: row.id, name: row.name, models: [], sel: -1, level: "", cur: "", noList: "", levels: [] });
+  const fact = (view.details[row.id]?.facts || []).find((f) => f.pick);
+  $("pick-title").textContent = `Model of ${row.name}${fact ? " · now " + fact.value : ""}`;
+  $("pick-input").value = "";
+  $("pick-note").textContent = "loading models…";
+  $("picker").showModal();
+  $("pick-input").focus();
+  renderPicker();
+  try {
+    const r = await api(`/api/models?id=${encodeURIComponent(row.id)}`);
+    if (pick.id !== row.id) return;
+    pick.models = r.models; pick.levels = r.levels;
+    pick.cur = r.models.find((m) => row.model && (m === row.model || m.endsWith("/" + row.model))) || "";
+    pick.sel = pick.models.indexOf(pick.cur);
+    pick.noList = r.models.length ? "" : "no model list: the typed text is applied";
+  } catch (e) {
+    pick.noList = "no model list: " + e.message;
+    pick.levels = ["low", "medium", "high", "xhigh", "max"];
+  }
+  $("pick-note").textContent = pick.noList;
+  renderPicker();
+}
+
+async function applyPick() {
+  const list = filtered();
+  let model = pick.noList || list.length === 0 ? $("pick-input").value.trim() : (list[pick.sel] || "");
+  if (model === pick.cur) model = "";
+  if (!model && !pick.level) return $("picker").close();
+  $("pick-note").textContent = "applying…";
+  try {
+    const r = await api("/api/model", { target: pick.id, model, thinking: pick.level });
+    $("picker").close();
+    toast(`${pick.name}: ${[model, pick.level].filter(Boolean).join(" · ")}${r.live ? "" : " (at its resume)"}`);
+  } catch (e) {
+    $("pick-note").textContent = e.message;
+  }
+}
+
+$("pick-input").addEventListener("input", () => { pick.sel = filtered().length ? 0 : -1; renderPicker(); });
+$("pick-input").addEventListener("keydown", (e) => {
+  const n = filtered().length;
+  if (e.key === "ArrowDown") { pick.sel = Math.min(pick.sel + 1, n - 1); renderPicker(); e.preventDefault(); }
+  else if (e.key === "ArrowUp") { pick.sel = Math.max(pick.sel - 1, 0); renderPicker(); e.preventDefault(); }
+  else if (e.key === "Enter") { applyPick(); e.preventDefault(); }
+});
+$("pick-apply").onclick = applyPick;
+$("pick-cancel").onclick = () => $("picker").close();
+$("act-kill").onclick = kill;
+$("act-model").onclick = () => openPicker();
+$("tab-overview").onclick = () => { ui.side = "overview"; save(); renderSide(); };
+$("tab-tail").onclick = () => { ui.side = "tail"; save(); renderSide(); pollTail(); };
+$("tab-mail").onclick = () => { ui.side = "mail"; save(); renderSide(); pollMail(); };
+$("events-h").onclick = () => { ui.events = !ui.events; save(); renderBottom(); };
+$("notices-h").onclick = () => { ui.notices = !ui.notices; save(); renderBottom(); };
+
+// ---- keys: top's ----
+
+document.addEventListener("keydown", (e) => {
+  if ($("picker").open || e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  const tabs = view ? view.tabs : [];
+  const ti = tabs.findIndex((t) => t.key === ui.tab);
+  const go = {
+    ArrowDown: () => move(1), j: () => move(1), ArrowUp: () => move(-1), k: () => move(-1),
+    PageDown: () => move(10), PageUp: () => move(-10), Home: () => move(-items.length), End: () => move(items.length),
+    ArrowRight: () => tabs.length && switchTab(tabs[(ti + 1) % tabs.length].key),
+    l: () => tabs.length && switchTab(tabs[(ti + 1) % tabs.length].key),
+    ArrowLeft: () => tabs.length && switchTab(tabs[(ti - 1 + tabs.length) % tabs.length].key),
+    h: () => tabs.length && switchTab(tabs[(ti - 1 + tabs.length) % tabs.length].key),
+    Enter: () => { const it = items.find((i) => i.id === ui.sel); if (it && it.toggle) it.toggle(); },
+    t: () => (ui.side === "tail" ? $("tab-overview") : $("tab-tail")).click(),
+    m: () => (ui.side === "mail" ? $("tab-overview") : $("tab-mail")).click(),
+    x: kill, M: () => openPicker(),
+    e: () => $("events-h").click(), n: () => $("notices-h").click(),
+  }[e.key];
+  if (go) { go(); e.preventDefault(); }
+});
+
+render();
+poll();
+pollMail();
+</script>
+</body>
+</html>

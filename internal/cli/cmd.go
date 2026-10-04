@@ -165,6 +165,8 @@ func (e *env) root() *cobra.Command {
 			"piggery ps", authAdmin, e.ps),
 		e.cmd("top", "The same, live, with the latest events and a worker's tail", grpWatch,
 			"piggery top", authAdmin, e.top),
+		e.cmd("web [--addr 127.0.0.1:4125] [--open]", "The same as top, in the browser (loopback only)", grpWatch,
+			"piggery web --open", authAdmin, e.web),
 		e.cmd("tail <worker> [-n N] [-f|--view] [--team T]", "A worker's rpc log, readable (--json raw)", grpWatch,
 			"piggery tail w1 -n 50 -f", authAdmin, e.tail),
 		e.cmd("log [--after SEQ] [--team T] [--limit N]", "Decisions and lifecycle events", grpWatch,

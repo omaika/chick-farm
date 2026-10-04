@@ -71,6 +71,11 @@ or `.exe` hook in `~/.piggery/hooks/notify.d/`.
 Using [Paseo](https://paseo.sh)? `piggery setup paseo` adds a Piggery view (the same as
 `piggery top`) to the app. Turn on plugins in Paseo's settings once.
 
+Rather a browser? `piggery web --open` serves `piggery top` at http://127.0.0.1:4125: the same
+rows, Overview and Tail, kill and the model picker, and a Mail tab with each participant's or team's
+messages (reading them acks nothing). It listens on loopback only (`--addr 127.0.0.1:PORT` for
+another port), and the page carries a token made at each start.
+
 Or build it: `go install github.com/sting8k/piggery/cmd/piggery@latest` (Go 1.26+).
 `piggery update` installs a newer release. Every release has a `checksums.txt`; what changed is in
 [CHANGELOG.md](CHANGELOG.md).
@@ -79,7 +84,7 @@ Or build it: `go install github.com/sting8k/piggery/cmd/piggery@latest` (Go 1.26
 
 1. Open pi, Claude Code, Codex, omp or `dsh web` in your project.
 2. Ask it for a team: *"make a supervisor-executor team to fix the failing tests"*.
-3. Watch the farm: `piggery top`.
+3. Watch the farm: `piggery top`, or `piggery web --open` in the browser.
 
 More: [docs/guide.md](docs/guide.md) covers running teams, watching and stepping in, and customizing
 `~/.piggery` (config, templates, worker profiles, your own rules); [docs/reference.md](docs/reference.md)

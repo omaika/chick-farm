@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `piggery web` shows `top` in the browser at http://127.0.0.1:4125 (loopback only): the same
+  rows, tabs, Overview, Tail, events and notices, live, with kill and the model picker, and a Mail
+  tab: a participant's or a team's messages and where each stands. Reading acks nothing.
 - Windows: pi and omp workers start without Developer Mode. A worker's agent dir links to your
   own entries with symlinks, which Windows only allows with Developer Mode on or elevated; without
   that, a folder is now linked as a junction and a file as a hard link.
