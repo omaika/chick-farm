@@ -260,7 +260,10 @@ timers:                        # one condition each; see reference.md for all of
 ```
 
 An agent that founds a team picks the template by its `when_to_use` and `when_not_to_use` lines
-(`agent action=templates` lists them); with none named it founds `supervisor-executor`.
+(`agent action=templates` lists them); with none named it founds `supervisor-executor`. A team that
+turns out to need another shape moves without starting over: `piggery team migrate <team> slp`
+(add `--map old=new` for roles the new template lacks); its members keep their mail and get their
+new role card by mail.
 
 `piggery` keeps a built-in you never edited up to date; a file you edited or deleted is left as it
 is, and your own templates are never touched. `piggery template new` copies the current built-in

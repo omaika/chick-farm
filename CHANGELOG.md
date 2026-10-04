@@ -15,6 +15,8 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
 - `found` without a template founds `supervisor-executor`, not `p2p`.
 - Templates have `when_to_use` and `when_not_to_use` lines; `agent action=templates` lists them so
   an agent picks a template by criteria, not by its summary alone. The built-ins have them.
+- `piggery team migrate <team> <template> [--map old=new]` moves an open team to another template,
+  keeping its members, mail, board and workers; each live member gets its new role card by mail.
 - `agent action=merge` (`piggery agent merge`) records a merge: `merged`, `conflict`, `resolved`
   or `aborted`, with the branch, what it went into and a note. Each is an event; `ps`/`top` show a
   team's merges in its Overview, and a team with an open conflict is flagged until it is recorded

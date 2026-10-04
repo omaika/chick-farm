@@ -436,7 +436,7 @@ func (s *server) handle(ctx context.Context, cn *conn, req proto.Request) proto.
 		// of an open team. The socket's 0600 mode is the boundary.
 		return call(req, func(a core.JoinAutoArgs) (any, error) { return s.eng.JoinAuto(ctx, a) })
 	case proto.VerbTeamUp, proto.VerbJoin, proto.VerbLog, proto.VerbRelease,
-		proto.VerbWhy, proto.VerbDoctor, proto.VerbLabels, proto.VerbTeamDown, proto.VerbGC, proto.VerbPs, proto.VerbTail, proto.VerbShutdown, proto.VerbAbort, proto.VerbKill, proto.VerbResume, proto.VerbModel, proto.VerbModels, proto.VerbMail:
+		proto.VerbWhy, proto.VerbDoctor, proto.VerbLabels, proto.VerbTeamDown, proto.VerbTeamMigrate, proto.VerbGC, proto.VerbPs, proto.VerbTail, proto.VerbShutdown, proto.VerbAbort, proto.VerbKill, proto.VerbResume, proto.VerbModel, proto.VerbModels, proto.VerbMail:
 		if !s.isAdmin(req.AdminToken) {
 			return errResponse(req.ID, s.unauthorized(req.Verb, "admin token required"))
 		}
@@ -448,6 +448,14 @@ func (s *server) handle(ctx context.Context, cn *conn, req proto.Request) proto.
 					s.log.Warn("team up", "team", team.Name, "warning", w)
 				}
 				return team, err
+			})
+		case proto.VerbTeamMigrate:
+			return call(req, func(a core.TeamMigrateArgs) (any, error) {
+				r, err := s.eng.TeamMigrate(ctx, a)
+				for _, w := range r.Warnings {
+					s.log.Warn("team migrate", "team", r.Name, "warning", w)
+				}
+				return r, err
 			})
 		case proto.VerbPs:
 			return call(req, func(a core.StateArgs) (any, error) {

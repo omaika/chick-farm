@@ -134,12 +134,14 @@ func (e *env) root() *cobra.Command {
 	)
 
 	root.SetHelpCommandGroupID(grpStart)
-	team := &cobra.Command{Use: "team", Short: "Bring a team up or down", GroupID: grpTeams}
+	team := &cobra.Command{Use: "team", Short: "Bring a team up or down, or move it to another template", GroupID: grpTeams}
 	team.AddCommand(
 		e.cmd("up <template|path.yaml> [--cwd D] [--name N]", "Start a team from a template in ~/.piggery/templates", "",
 			"piggery team up supervisor-executor --cwd .\npiggery team up ./team.yaml --cwd . --name demo", authAdmin, e.teamUp),
 		e.cmd("down <team>", "Close a team: stop its workers; nothing is acked", "",
 			"piggery team down demo", authAdmin, e.teamDown),
+		e.cmd("migrate <team> <template|path.yaml> [--map old=new]", "Move an open team to another template, keeping its members and mail", "",
+			"piggery team migrate demo slp\npiggery team migrate demo supervisor-executor --map peer=executor", authAdmin, e.teamMigrate),
 	)
 	template := &cobra.Command{Use: "template", Short: "Make your own team template", GroupID: grpTeams}
 	template.AddCommand(e.cmd("new <name> [--from <built-in>]", "Copy a built-in (default p2p) to ~/.piggery/templates/<name>", "",

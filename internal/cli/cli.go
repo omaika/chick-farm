@@ -183,19 +183,7 @@ func (e *env) teamUp(args []string) error {
 	if err != nil {
 		return err
 	}
-	// A path is read as is; a template name is ~/.piggery/templates/<name> (the daemon unpacks
-	// the built-ins there when it starts, so connect first).
-	var manifest string
-	if ext := filepath.Ext(pos[0]); ext == ".yaml" || ext == ".yml" {
-		manifest, err = manifests.Inline(pos[0])
-	} else {
-		var c *Client
-		if c, err = e.connect(); err != nil {
-			return err
-		}
-		c.Close()
-		manifest, err = manifests.Resolve(pos[0], e.dir)
-	}
+	manifest, err := e.manifestArg(pos[0])
 	if err != nil {
 		return err
 	}
@@ -203,6 +191,68 @@ func (e *env) teamUp(args []string) error {
 		func(w io.Writer, t core.Team) {
 			fmt.Fprintf(w, "team %s name=%s template=%s root=%s\n", t.ID, t.Name, t.Template, t.RootCwd)
 			for _, warn := range t.Warnings {
+				fmt.Fprintf(w, "warning: %s\n", warn)
+			}
+		})
+}
+
+// manifestArg reads team up's and team migrate's <template|path.yaml>: a path is read as is; a
+// template name is ~/.piggery/templates/<name> (the daemon unpacks the built-ins there when it
+// starts, so connect first).
+func (e *env) manifestArg(arg string) (string, error) {
+	if ext := filepath.Ext(arg); ext == ".yaml" || ext == ".yml" {
+		return manifests.Inline(arg)
+	}
+	c, err := e.connect()
+	if err != nil {
+		return "", err
+	}
+	c.Close()
+	return manifests.Resolve(arg, e.dir)
+}
+
+// roleMap is team migrate's --map old=new, repeated or comma-separated.
+type roleMap map[string]string
+
+func (r roleMap) String() string { return fmt.Sprint(map[string]string(r)) }
+
+func (r roleMap) Set(v string) error {
+	for _, pair := range strings.Split(v, ",") {
+		old, nw, ok := strings.Cut(strings.TrimSpace(pair), "=")
+		if !ok || old == "" || nw == "" {
+			return fmt.Errorf("--map %q: want old=new", pair)
+		}
+		r[old] = nw
+	}
+	return nil
+}
+
+func (e *env) teamMigrate(args []string) error {
+	fs := e.flags("team migrate")
+	moves := roleMap{}
+	fs.Var(moves, "map", "old=new: the new role of members whose role the template lacks (repeat, or comma-separate)")
+	pos, err := parse(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 2 {
+		return fmt.Errorf("%w: team migrate <team> <template|path.yaml> [--map old=new]", errUsage)
+	}
+	manifest, err := e.manifestArg(pos[1])
+	if err != nil {
+		return err
+	}
+	return do(e, proto.VerbTeamMigrate, core.TeamMigrateArgs{Team: pos[0], Manifest: manifest, Map: moves},
+		func(w io.Writer, r core.TeamMigrateResult) {
+			fmt.Fprintf(w, "team %s: template %s -> %s\n", r.Name, r.From, r.To)
+			for _, mv := range r.Moves {
+				if mv.From == mv.To {
+					fmt.Fprintf(w, "  %s: %s\n", mv.Name, mv.To)
+				} else {
+					fmt.Fprintf(w, "  %s: %s -> %s\n", mv.Name, mv.From, mv.To)
+				}
+			}
+			for _, warn := range r.Warnings {
 				fmt.Fprintf(w, "warning: %s\n", warn)
 			}
 		})

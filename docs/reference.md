@@ -17,6 +17,7 @@ you (admin, read from `~/.piggery/admin.token`) and start the daemon if it is no
 | `skills` | Print the guide for agents |
 | `team up <template\|path.yaml> [--cwd D] [--name N]` | Start a team from a template in `~/.piggery/templates`, or a manifest file |
 | `team down <team>` | Close a team: workers stopped, nothing acked |
+| `team migrate <team> <template\|path.yaml> [--map old=new]` | Move an open team to another template, keeping its members, mail, board and workers: the gate takes the new template's `auto_join_role`, every other member the role `--map` names for its role (repeat it, or comma-separate), else the role of the same name; a member left without a role refuses the whole move. Each live member gets a mail from `engine` with its new role card; routing the new template does not allow between a member and the one it reports to is a `warning:` line |
 | `template new <name> [--from <built-in>]` | Copy a built-in (default `p2p`) to `~/.piggery/templates/<name>` |
 | `ps [--json\|--view]` | Daemon, teams, members, solo sessions and pending mail, once; `--view` prints what `top` shows (rows, header counts, events, the latest notices as `notices`, the update notice as `daemon.update`, each row's actions and Overview) as one JSON document with a `version` field, for the Paseo plugin |
 | `top` | The same, live, with context, turns and the latest events and notices (Notices at the bottom left once there is a notice, Events on the right, split where the list and the Overview are; stacked in a narrow window); its header says `vX available: piggery update` when a newer release is out; `↑/↓` select (`PgUp`/`PgDn`, `Home`/`End` in a long list, which scrolls under its header; `↑ N`/`↓ N` on the border count hidden lines), `enter` opens or closes (a member's details, a team's members, a team's gone-members line; kept for the next `top`), `t` switches Overview and Tail, `e` opens the events list (folded to the latest event by default; kept for the next `top`), `n` opens or closes the Notices box (the latest notices; folded to the newest one by default, kept for the next `top`, like `e`), `x` kills the selected headless worker (asks once); a click on the model (blue, `▾`) in a live headless worker's Overview, or `M`, opens a picker for its model and thinking level (`enter` or a double-click applies, `esc` closes) |
@@ -85,8 +86,9 @@ resume. Missing keys are added with their defaults; `setup --force` writes the d
 ## Manifest
 
 `~/.piggery/templates/<name>/manifest.yaml`. Frozen into a team when it is brought up: a change
-applies to the next team only. A manifest with a key this list does not have, or a wrong value, is
-refused with the reason when the team is brought up.
+applies to the next team only, or to an open team moved to it with `team migrate`. A manifest
+with a key this list does not have, or a wrong value, is refused with the reason when the team is
+brought up.
 
 | Key | Default | Meaning |
 |---|---|---|

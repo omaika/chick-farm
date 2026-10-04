@@ -34,6 +34,7 @@ const (
 	VerbDoctor       = "doctor"        // admin, no args -> core.DoctorResult (read-only)
 	VerbLabels       = "labels"        // admin, args core.LabelsArgs -> map id -> name or #seq (read-only)
 	VerbTeamDown     = "team.down"     // admin, args core.TeamDownArgs -> core.TeamDownResult
+	VerbTeamMigrate  = "team.migrate"  // admin, args core.TeamMigrateArgs -> core.TeamMigrateResult
 	VerbPs           = "ps"            // admin, args core.StateArgs -> PsResult (read-only)
 	VerbTail         = "tail"          // admin, args core.WorkerLogArgs -> TailResult (read-only): a worker's log or a session's transcript
 	VerbShutdown     = "shutdown"      // admin, no args -> {}; the daemon shuts down after answering
