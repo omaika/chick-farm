@@ -6,12 +6,14 @@ import (
 )
 
 // MailArgs is `mail` (admin, read-only): the messages a participant sent or received, or a team's,
-// or every one, newest first. Reading acks nothing: a participant's inbox is its own.
+// or every one, newest first; with Pins, a team's live board pins, oldest first, as its members
+// read the board. Reading acks nothing: a participant's inbox is its own.
 type MailArgs struct {
 	Participant string `json:"participant,omitempty"` // its mail, sent and received (id, or name)
 	Team        string `json:"team,omitempty"`        // a team (id, or name): the messages in it
 	Before      int64  `json:"before,omitempty"`      // only messages older than this #seq (the next page)
 	Limit       int    `json:"limit,omitempty"`       // default mailLimit, at most mailMax
+	Pins        bool   `json:"pins,omitempty"`        // only the team's live pins, oldest first (needs Team; no paging)
 }
 
 const (
@@ -54,6 +56,13 @@ func (e *Engine) Mail(ctx context.Context, a MailArgs) (MailResult, error) {
 	limit = min(limit, mailMax)
 	var where []string
 	var args []any
+	order := "DESC"
+	if a.Pins {
+		if a.Team == "" || a.Participant != "" || a.Before != 0 {
+			return MailResult{}, errf(CodeInvalid, "pins needs a team, and takes no participant or before")
+		}
+		where, order, limit = append(where, "m.id IN (SELECT id FROM pins)"), "ASC", BoardLimit
+	}
 	if a.Participant != "" {
 		where = append(where, "(m.from_id=? OR m.to_id=? OR pf.name=? OR pt.name=?)")
 		args = append(args, a.Participant, a.Participant, a.Participant, a.Participant)
@@ -75,7 +84,7 @@ func (e *Engine) Mail(ctx context.Context, a MailArgs) (MailResult, error) {
 	if len(where) > 0 {
 		q += " WHERE " + strings.Join(where, " AND ")
 	}
-	q += " ORDER BY m.seq DESC LIMIT ?"
+	q += " ORDER BY m.seq " + order + " LIMIT ?"
 	args = append(args, limit+1)
 	out := MailResult{Messages: []MailRow{}}
 	err := e.readOnly(ctx, func(t *txn) error {

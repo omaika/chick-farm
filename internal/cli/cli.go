@@ -305,6 +305,7 @@ func (e *env) mailCmd(args []string) error {
 	fs.StringVar(&a.Participant, "participant", "", "a participant (id or name): its mail, sent and received")
 	fs.Int64Var(&a.Before, "before", 0, "only messages older than this #seq (the next page)")
 	fs.IntVar(&a.Limit, "limit", 0, "max messages (default 50, at most 200)")
+	fs.BoolVar(&a.Pins, "pins", false, "only the team's live board pins, oldest first (needs --team)")
 	pos, err := parse(fs, args)
 	if err != nil {
 		return err
@@ -313,6 +314,12 @@ func (e *env) mailCmd(args []string) error {
 		return fmt.Errorf("%w: mail takes no arguments", errUsage)
 	}
 	return do(e, proto.VerbMail, a, func(w io.Writer, r core.MailResult) {
+		if a.Pins {
+			if err := pinsOnly(r); err != nil {
+				fmt.Fprintln(w, err)
+				return
+			}
+		}
 		for _, m := range r.Messages {
 			tags := strings.TrimSpace(strings.Join([]string{m.Kind, m.Op}, " "))
 			if m.ReplyTo != 0 {

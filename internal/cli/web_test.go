@@ -43,6 +43,9 @@ func TestWebHostAndToken(t *testing.T) {
 	if w := get("127.0.0.1:4125", "/api/mail", "t0k"); w.Code != http.StatusBadRequest {
 		t.Fatalf("mail without a scope: %d", w.Code)
 	}
+	if w := get("127.0.0.1:4125", "/api/mail?participant=bob&pins=1", "t0k"); w.Code != http.StatusBadRequest {
+		t.Fatalf("pins without a team: %d", w.Code)
+	}
 	// with the token it reaches the daemon, which is not running here
 	if w := get("127.0.0.1:4125", "/api/view", "t0k"); w.Code != http.StatusBadGateway {
 		b, _ := io.ReadAll(w.Body)

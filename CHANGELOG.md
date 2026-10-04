@@ -17,6 +17,9 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
   the incident still holds `escalate_after` later (default: the condition's duration; `max_rework`:
   at the next rework). An escalation to `notify` is a notice of kind `watch`. The built-in
   templates use them.
+- `web` has a Board tab (`b`): the live pins of the selected row's team, whole, oldest first, so
+  a lane's plan is read where the Overview only lists its first line. `piggery mail --team T
+  --pins` prints the same.
 - A board pin is replaced or removed only by its author, a member above the author in the
   `reports_to` chain, or the team's gate (`board.not_yours` otherwise); a pin whose author is gone
   is anyone's who can pin. One Lead can no longer overwrite another lane's plan, nor a `p2p` peer

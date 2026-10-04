@@ -129,6 +129,7 @@
       <button id="tab-overview">Overview</button>
       <button id="tab-tail">Tail</button>
       <button id="tab-mail">Mail</button>
+      <button id="tab-board">Board</button>
       <span class="grow"></span>
       <button id="act-model" hidden>Model ▾</button>
       <button id="act-kill" class="danger" hidden>Kill</button>
@@ -141,7 +142,7 @@
   <section><h3 id="events-h"></h3><div id="events"></div></section>
 </footer>
 <div class="keys">
-  <kbd>↑</kbd><kbd>↓</kbd> select · <kbd>←</kbd><kbd>→</kbd> tab · <kbd>enter</kbd> open/close · <kbd>t</kbd> overview/tail · <kbd>m</kbd> mail ·
+  <kbd>↑</kbd><kbd>↓</kbd> select · <kbd>←</kbd><kbd>→</kbd> tab · <kbd>enter</kbd> open/close · <kbd>t</kbd> overview/tail · <kbd>m</kbd> mail · <kbd>b</kbd> board ·
   <kbd>x</kbd> kill · <kbd>M</kbd> model · <kbd>e</kbd> events · <kbd>n</kbd> notices
 </div>
 <div id="toast"></div>
@@ -347,6 +348,8 @@ function renderSide() {
   $("tab-tail").disabled = !acts.tail;
   $("tab-mail").className = ui.side === "mail" ? "on" : "";
   $("tab-mail").disabled = !mailScope(ui.sel);
+  $("tab-board").className = ui.side === "board" ? "on" : "";
+  $("tab-board").disabled = !boardTeam(ui.sel);
   $("act-kill").hidden = !acts.kill;
   $("act-model").hidden = !acts.pick;
   const body = $("sidebody");
@@ -362,6 +365,10 @@ function renderSide() {
   }
   if (ui.side === "mail" && mailScope(ui.sel)) {
     body.replaceChildren(mailbox());
+    return;
+  }
+  if (ui.side === "board" && boardTeam(ui.sel)) {
+    body.replaceChildren(boardPins());
     return;
   }
   body.replaceChildren(overview(ui.sel, row));
@@ -425,6 +432,49 @@ function mailShown() {
   const fresh = mail.messages || [];
   const low = fresh.length ? fresh[fresh.length - 1].seq : Infinity;
   return fresh.concat(mail.older.filter((m) => m.seq < low));
+}
+
+// ---- board: the live pins of the selected row's team, whole, oldest first ----
+
+let board = { team: "", pins: null, err: "" };
+
+/** The team whose board the Board tab shows for id: a team's line, its gone line, or a member's team. */
+function boardTeam(id) {
+  for (const p of [TEAM_LINE, GONE_LINE]) if (id.startsWith(p)) return id.slice(p.length);
+  const row = view && rowIndex().get(id);
+  return (row && row.team) || "";
+}
+
+async function pollBoard() {
+  const team = ui.side === "board" && view ? boardTeam(ui.sel) : "";
+  if (!team) return;
+  if (team !== board.team) board = { team, pins: null, err: "" };
+  try {
+    const r = await api("/api/mail?" + new URLSearchParams({ team, pins: "1" }));
+    if (team !== board.team) return;
+    board.pins = r.messages;
+    board.err = "";
+  } catch (e) {
+    if (team === board.team) board.err = e.message;
+  }
+  if (team === board.team) renderSide();
+}
+setInterval(pollBoard, 2 * EVERY);
+
+function boardPins() {
+  if (board.team !== boardTeam(ui.sel) || board.pins === null) return h("div", { class: board.err ? "danger-text" : "muted" }, board.err || "reading…");
+  const out = h("div", {},
+    h("div", { class: "mailbar muted" }, `${board.pins.length} pin${board.pins.length === 1 ? "" : "s"}`),
+    board.err ? h("div", { class: "danger-text" }, board.err) : null);
+  if (board.pins.length === 0) out.append(h("div", { class: "muted" }, "Nothing pinned."));
+  for (const m of board.pins) {
+    out.append(h("div", { class: "mail" },
+      h("div", { class: "head" }, h("span", { class: "seq" }, "#" + m.seq), h("b", {}, m.from),
+        m.op ? h("span", { class: "tag", title: "a new version of an earlier pin" }, m.op) : null,
+        h("span", { class: "when", title: new Date(m.created_at).toLocaleString() }, clock(m.created_at))),
+      h("div", { class: "body open" }, m.body)));
+  }
+  return out;
 }
 
 /** "14:02" today, "Sep 29 14:02" on an earlier day. */
@@ -502,6 +552,7 @@ function select(id) {
   renderSide();
   if (ui.side === "tail") pollTail();
   if (ui.side === "mail") pollMail();
+  if (ui.side === "board") pollBoard();
 }
 
 function move(d) {
@@ -634,6 +685,7 @@ $("act-model").onclick = () => openPicker();
 $("tab-overview").onclick = () => { ui.side = "overview"; save(); renderSide(); };
 $("tab-tail").onclick = () => { ui.side = "tail"; save(); renderSide(); pollTail(); };
 $("tab-mail").onclick = () => { ui.side = "mail"; save(); renderSide(); pollMail(); };
+$("tab-board").onclick = () => { ui.side = "board"; save(); renderSide(); pollBoard(); };
 $("events-h").onclick = () => { ui.events = !ui.events; save(); renderBottom(); };
 $("notices-h").onclick = () => { ui.notices = !ui.notices; save(); renderBottom(); };
 
@@ -653,6 +705,7 @@ document.addEventListener("keydown", (e) => {
     Enter: () => { const it = items.find((i) => i.id === ui.sel); if (it && it.toggle) it.toggle(); },
     t: () => (ui.side === "tail" ? $("tab-overview") : $("tab-tail")).click(),
     m: () => (ui.side === "mail" ? $("tab-overview") : $("tab-mail")).click(),
+    b: () => (ui.side === "board" ? $("tab-overview") : $("tab-board")).click(),
     x: kill, M: () => openPicker(),
     e: () => $("events-h").click(), n: () => $("notices-h").click(),
   }[e.key];
@@ -662,6 +715,7 @@ document.addEventListener("keydown", (e) => {
 render();
 poll();
 pollMail();
+pollBoard();
 </script>
 </body>
 </html>

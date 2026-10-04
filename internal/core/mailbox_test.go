@@ -84,4 +84,14 @@ func TestStatePins(t *testing.T) {
 	if len(pins) != 1 || pins[0].Title != "Plan v2" || pins[0].By != "alice" || pins[0].Lines != 4 {
 		t.Fatalf("pins = %+v; want the replaced plan only", pins)
 	}
+	// mail with pins (the web's Board tab): the same live pins, whole, oldest first.
+	later := f.send(t, f.bob, core.SendArgs{To: "board", Body: "demo friday"}).ID
+	r, err := f.e.Mail(ctx, core.MailArgs{Team: s.Teams[0].Name, Pins: true})
+	if err != nil || len(r.Messages) != 2 || r.Messages[0].Body != "Plan v2\nT1 done\nT2 grammar\nT3 errors" ||
+		r.Messages[1].ID != later || r.Messages[0].State != "board" || r.More {
+		t.Fatalf("mail pins = %+v, %v", r, err)
+	}
+	if _, err := f.e.Mail(ctx, core.MailArgs{Pins: true}); code(err) != core.CodeInvalid {
+		t.Fatalf("pins without a team: %v", err)
+	}
 }

@@ -264,7 +264,7 @@ func (s *webServer) models(r *http.Request) (any, error) {
 }
 
 // mail is the messages of a participant or a team (verb `mail`, read-only: it acks nothing),
-// newest first; before pages back.
+// newest first; before pages back. pins=1 is a team's live board pins instead, oldest first.
 func (s *webServer) mail(r *http.Request) (any, error) {
 	q := r.URL.Query()
 	a := core.MailArgs{Participant: q.Get("participant"), Team: q.Get("team")}
@@ -273,11 +273,28 @@ func (s *webServer) mail(r *http.Request) (any, error) {
 	}
 	a.Before, _ = strconv.ParseInt(q.Get("before"), 10, 64)
 	a.Limit, _ = strconv.Atoi(q.Get("limit"))
+	if a.Pins = q.Get("pins") == "1"; a.Pins && a.Team == "" {
+		return nil, fmt.Errorf("%w: pins needs a team", errUsage)
+	}
 	var out core.MailResult
 	if err := s.call(proto.VerbMail, a, &out); err != nil {
 		return nil, err
 	}
+	if a.Pins {
+		return out, pinsOnly(out)
+	}
 	return out, nil
+}
+
+// pinsOnly refuses a pins answer with mail in it: a daemon older than pins ignores it and answers
+// with the team's mail.
+func pinsOnly(r core.MailResult) error {
+	for _, m := range r.Messages {
+		if m.ToID != core.AddrBoard {
+			return fmt.Errorf("the daemon is older than this binary and cannot list pins: piggery restart")
+		}
+	}
+	return nil
 }
 
 // kill is top's x: the verb `kill` on a worker.
