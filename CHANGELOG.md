@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.8.1 - 2026-10-05
 
 After upgrading, run `piggery setup --outdated`: the pi and omp integrations are now 5 and dsh 6
 (the `agent` tool has the `merge` action; `send` has `op: accept|drop`).
