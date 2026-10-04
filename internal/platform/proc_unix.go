@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -13,13 +14,21 @@ import (
 	"time"
 )
 
-// lstartLayout is `ps -o lstart` (local time).
+// lstartLayout is `ps -o lstart` (local time) in the C locale.
 const lstartLayout = "Mon Jan _2 15:04:05 2006"
+
+// ps is `ps args` in the C locale: lstart is written in the user's (LANG=pt_BR.UTF-8 gives "dom  4
+// out 06:40:36 2026"), which lstartLayout cannot read, and a session's host would not be found.
+func ps(ctx context.Context, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "ps", args...)
+	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	return cmd
+}
 
 // Processes is every process (`ps -A`, on macOS and Linux); nil when it cannot be read. Start is
 // `ps lstart` verbatim.
 func Processes() []Proc {
-	out, err := exec.Command("ps", "-A", "-o", "pid=,ppid=,pgid=,lstart=").Output()
+	out, err := ps(context.Background(), "-A", "-o", "pid=,ppid=,pgid=,lstart=").Output()
 	if err != nil {
 		return nil
 	}
@@ -43,7 +52,7 @@ func Processes() []Proc {
 // StartTime is the OS start time of pid in unix ms, or 0 when unknown. `ps -o lstart=` exists on
 // macOS and Linux (procps) and prints local time with one-second resolution.
 func StartTime(pid int) int64 {
-	out, err := exec.Command("ps", "-o", "lstart=", "-p", strconv.Itoa(pid)).Output()
+	out, err := ps(context.Background(), "-o", "lstart=", "-p", strconv.Itoa(pid)).Output()
 	if err != nil {
 		return 0
 	}
@@ -56,7 +65,7 @@ func StartTime(pid int) int64 {
 
 // ParentPID is pid's parent, or 0 when unknown (the process is gone).
 func ParentPID(pid int) int {
-	out, err := exec.Command("ps", "-o", "ppid=", "-p", strconv.Itoa(pid)).Output()
+	out, err := ps(context.Background(), "-o", "ppid=", "-p", strconv.Itoa(pid)).Output()
 	if err != nil {
 		return 0
 	}
@@ -66,7 +75,7 @@ func ParentPID(pid int) int {
 
 // Parent is pid's parent and pid's program name; ok=false when pid is gone.
 func Parent(pid int) (ppid int, name string, ok bool) {
-	out, err := exec.Command("ps", "-o", "ppid=,comm=", "-p", strconv.Itoa(pid)).Output()
+	out, err := ps(context.Background(), "-o", "ppid=,comm=", "-p", strconv.Itoa(pid)).Output()
 	f := strings.Fields(string(out))
 	if err != nil || len(f) < 2 {
 		return 0, "", false
@@ -78,7 +87,7 @@ func Parent(pid int) (ppid int, name string, ok bool) {
 // Info reads the OS start time (unix ms, as StartTime) and command line of pid. alive=false when
 // there is no such process; err when the process table could not be read.
 func Info(ctx context.Context, pid int) (start int64, command string, alive bool, err error) {
-	out, err := exec.CommandContext(ctx, "ps", "-ww", "-o", "lstart=,command=", "-p", strconv.Itoa(pid)).Output()
+	out, err := ps(ctx, "-ww", "-o", "lstart=,command=", "-p", strconv.Itoa(pid)).Output()
 	var ee *exec.ExitError
 	if errors.As(err, &ee) && ee.ExitCode() == 1 && len(strings.TrimSpace(string(out))) == 0 {
 		return 0, "", false, nil // ps: no such process

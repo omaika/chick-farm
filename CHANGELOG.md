@@ -68,6 +68,9 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
 - `piggery web` shows `top` in the browser at http://127.0.0.1:4125 (loopback only): the same
   rows, tabs, Overview, Tail, events and notices, live, with kill and the model picker, and a Mail
   tab: a participant's or a team's messages and where each stands. Reading acks nothing.
+- A Claude or Codex session whose locale writes dates in another language (e.g. `LANG=pt_BR.UTF-8`)
+  is found again: piggery reads `ps` in the C locale. Before, its MCP server listed no tools and its
+  hooks did nothing.
 - Windows: pi and omp workers start without Developer Mode. A worker's agent dir links to your
   own entries with symlinks, which Windows only allows with Developer Mode on or elevated; without
   that, a folder is now linked as a junction and a file as a hard link.
