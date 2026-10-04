@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+After upgrading, run `piggery setup --outdated`: the pi and omp integrations are now 5 and dsh 6
+(the `agent` tool's description changed).
+
+- `found` without a template founds `supervisor-executor`, not `p2p`.
 - `piggery web` shows `top` in the browser at http://127.0.0.1:4125 (loopback only): the same
   rows, tabs, Overview, Tail, events and notices, live, with kill and the model picker, and a Mail
   tab: a participant's or a team's messages and where each stands. Reading acks nothing.

@@ -34,9 +34,10 @@ shows one. Install and first steps are in the [README](../README.md).
 3. The gate spawns workers as the template allows, gives them tasks by mail, and gets a handback
    from each. You keep talking to the gate, in your own session.
 
-Built-in templates: `supervisor-executor` (a supervisor splits the goal; executors do the tasks),
-`slp` (a supervisor steers a lane: one lead, peers with separate scopes), `council` (a chair asks
-members for independent views on one decision), `p2p` (peers that talk freely and spawn peers).
+Built-in templates: `supervisor-executor` (the default: a supervisor splits the goal; executors do
+the tasks), `slp` (a supervisor steers a lane: one lead, peers with separate scopes), `council` (a
+chair asks members for independent views on one decision), `p2p` (peers that talk freely and spawn
+peers).
 
 **Mixing harnesses.** A role can name a harness (`spawn: {harness: claude}` in the template); a
 role that names none uses the harness of the session that founded the team, and a founder with none

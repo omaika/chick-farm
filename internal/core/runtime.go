@@ -246,7 +246,7 @@ type AgentArgs struct {
 	// unknown field.
 	Target string `json:"target,omitempty"` // worker name or id in view
 	Lines  int    `json:"lines,omitempty"`
-	// Template is found's team template (default p2p).
+	// Template is found's team template (default DefaultTemplate).
 	Template string `json:"template,omitempty"`
 	// Team is reopen's closed team (its name).
 	Team string `json:"team,omitempty"`

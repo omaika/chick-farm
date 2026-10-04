@@ -94,7 +94,7 @@ lists every command, config key, profile key and manifest key.
 
 | Template | Who does what |
 | --- | --- |
-| `supervisor-executor` | A supervisor splits the goal into checkable tasks; executors do them. |
+| `supervisor-executor` | A supervisor splits the goal into checkable tasks; executors do them. The default. |
 | `slp` | You steer a supervisor; each lane has a lead and peers, often in its own git worktree. |
 | `council` | A chair asks members for independent views on one hard decision. |
 | `p2p` | Peers that talk freely and spawn more peers. |
