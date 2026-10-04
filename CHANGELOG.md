@@ -3,7 +3,7 @@
 ## Unreleased
 
 After upgrading, run `piggery setup --outdated`: the pi and omp integrations are now 5 and dsh 6
-(the `agent` tool's description changed).
+(the `agent` tool has the `merge` action).
 
 - Timers have more conditions than `silent_for`, one per rule: `idle_with_task_for` (a member idle
   while its task waits on it), `unanswered_for` (a teammate's mail left without anything back) and
@@ -15,6 +15,10 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
 - `found` without a template founds `supervisor-executor`, not `p2p`.
 - Templates have `when_to_use` and `when_not_to_use` lines; `agent action=templates` lists them so
   an agent picks a template by criteria, not by its summary alone. The built-ins have them.
+- `agent action=merge` (`piggery agent merge`) records a merge: `merged`, `conflict`, `resolved`
+  or `aborted`, with the branch, what it went into and a note. Each is an event; `ps`/`top` show a
+  team's merges in its Overview, and a team with an open conflict is flagged until it is recorded
+  resolved or aborted. The `slp` prompts ask the Lead and the Supervisor to record theirs.
 - `piggery web` shows `top` in the browser at http://127.0.0.1:4125 (loopback only): the same
   rows, tabs, Overview, Tail, events and notices, live, with kill and the model picker, and a Mail
   tab: a participant's or a team's messages and where each stands. Reading acks nothing.

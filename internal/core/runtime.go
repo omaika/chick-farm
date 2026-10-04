@@ -229,11 +229,12 @@ const (
 	AgentTemplates = "templates"
 	AgentClose     = "close"
 	AgentReopen    = "reopen"
+	AgentMerge     = "merge"
 )
 
 // AgentArgs is the `agent` tool. Fields by action:
 // spawn {role, name, task}; stop/resume {target}; tail {target, lines}; found {template?}; admit {target, role};
-// templates {}; close {}.
+// templates {}; close {}; merge {branch, into?, status, note?}.
 type AgentArgs struct {
 	Action string `json:"action"`
 	Role   string `json:"role,omitempty"`
@@ -250,6 +251,12 @@ type AgentArgs struct {
 	Template string `json:"template,omitempty"`
 	// Team is reopen's closed team (its name).
 	Team string `json:"team,omitempty"`
+	// Branch, Into, Status and Note are merge's record: what was merged into what, and how it went
+	// (merged, conflict, resolved, aborted), with an optional line.
+	Branch string `json:"branch,omitempty"`
+	Into   string `json:"into,omitempty"`
+	Status string `json:"status,omitempty"`
+	Note   string `json:"note,omitempty"`
 }
 
 type AgentResult struct {

@@ -30,9 +30,10 @@ and its Peers do the work. Do not do a Lead's or a Peer's work yourself.
   it)? If not, reply with `{tool:send}` kind `rework` and `reply_to` its #N, saying what is
   missing.
 - Bringing lanes together is yours: merge an accepted lane's branch where it must end up, and
-  bring a conflict that needs a decision to the Human. Then stop the Lead with `{tool:agent}`
-  action `stop`, and remove its worktree only once everything in it is committed and merged
-  (a check of the worktree's status shows nothing uncommitted).
+  bring a conflict that needs a decision to the Human. Record each merge as the Lead does, with
+  `{tool:agent}` action `merge` (`merged`, `conflict`, then `resolved` or `aborted`). Then stop
+  the Lead with `{tool:agent}` action `stop`, and remove its worktree only once everything in it
+  is committed and merged (a check of the worktree's status shows nothing uncommitted).
 - A notice that a Peer's scope has had too many reworks: ask its Lead what is wrong with the
   brief. A reminder that you have not answered a Lead's mail: answer it, or tell the Human what it
   waits on; the Human hears of it if it keeps waiting.

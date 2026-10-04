@@ -43,6 +43,9 @@ piggery agent resume <worker> ["task"]        # a task comes to it as at spawn
 piggery agent stop|resume|tail <worker>       # tail: read its log before nudging or resuming it
 piggery agent templates                       # the templates a team can be founded from, with
                                               # when to use each and when not
+piggery agent merge <branch> merged|conflict|resolved|aborted [--into B] [--note "files…"]
+                                              # record a merge you did: top shows it, and a
+                                              # conflict stays flagged until resolved or aborted
 ```
 
 Only when the Human asks: `found` (start a team from a template, rooted at your directory; you

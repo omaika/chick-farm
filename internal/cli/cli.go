@@ -467,13 +467,23 @@ func (e *env) agent(args []string) error {
 		fs.StringVar(&a.Cwd, "cwd", "", "the worker's directory, relative to yours or absolute (your role needs can_set_cwd)")
 	case core.AgentTail:
 		fs.IntVar(&a.Lines, "lines", 20, "records to show")
+	case core.AgentMerge:
+		fs.StringVar(&a.Into, "into", "", "the branch it was merged into")
+		fs.StringVar(&a.Note, "note", "", "one line: the conflicting files, how it was resolved…")
 	case core.AgentStop, core.AgentResume, core.AgentTemplates, core.AgentClose, core.AgentReopen:
 	default:
-		return fmt.Errorf("%w: agent spawn|stop|resume|tail|templates|close|reopen", errUsage)
+		return fmt.Errorf("%w: agent spawn|stop|resume|tail|templates|close|reopen|merge", errUsage)
 	}
 	pos, err := parse(fs, rest)
 	if err != nil {
 		return err
+	}
+	if action == core.AgentMerge {
+		if len(pos) != 2 {
+			return fmt.Errorf("%w: agent merge <branch> merged|conflict|resolved|aborted [--into B] [--note N]", errUsage)
+		}
+		a.Branch, a.Status = pos[0], pos[1]
+		return do(e, proto.VerbAgent, a, func(w io.Writer, r core.AgentResult) { fmt.Fprintln(w, r.Text) })
 	}
 	if action == core.AgentReopen {
 		if len(pos) != 1 {

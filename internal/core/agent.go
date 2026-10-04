@@ -12,8 +12,8 @@ import (
 	"strings"
 )
 
-// Agent is the `agent` tool: spawn, stop, resume, tail headless workers, found a team, and
-// admit a solo. Core decides (gate, rows, mail, events); the RuntimeDriver owns processes and
+// Agent is the `agent` tool: spawn, stop, resume, tail headless workers, found a team, admit a
+// solo, and record a merge. Core decides (gate, rows, mail, events); the RuntimeDriver owns processes and
 // is only called after commit.
 func (e *Engine) Agent(ctx context.Context, c Caller, a AgentArgs) (AgentResult, error) {
 	switch a.Action { // no process: these need no runtime
@@ -27,6 +27,8 @@ func (e *Engine) Agent(ctx context.Context, c Caller, a AgentArgs) (AgentResult,
 		return e.closeTeam(ctx, c)
 	case AgentReopen:
 		return e.reopen(ctx, c, a)
+	case AgentMerge:
+		return e.recordMerge(ctx, c, a)
 	}
 	if len(e.runtimes) == 0 {
 		return AgentResult{}, errf(CodeUnsupported, "no runtime driver configured")

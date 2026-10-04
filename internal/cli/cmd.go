@@ -209,7 +209,7 @@ func (e *env) root() *cobra.Command {
 		e.cmd("who", "", "", "", authParticipant, func(a []string) error { return simple(e, "who", a, proto.VerbWho, printWho) }),
 		e.cmd("board", "", "", "", authParticipant, func(a []string) error { return simple(e, "board", a, proto.VerbBoard, printBoard) }),
 		e.cmd("watch add|list", "", "", "", authParticipant, e.watch),
-		e.cmd("agent spawn|stop|resume|tail|templates|close|reopen", "", "", "", authParticipant, e.agent),
+		e.cmd("agent spawn|stop|resume|tail|templates|close|reopen|merge", "", "", "", authParticipant, e.agent),
 		// The Claude Code adapter: Claude runs these, never a person.
 		e.cmd("mcp", "", "", "", authLocal, e.mcp),
 		e.cmd("hook claude <HookEvent>", "", "", "", authLocal, e.hook),

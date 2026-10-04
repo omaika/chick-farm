@@ -42,6 +42,8 @@ type TeamState struct {
 	Unacked   int           `json:"unacked"`
 	Members   []MemberState `json:"members"`
 	CreatedAt int64         `json:"created_at"` // when it was brought up
+	// Merges are each branch's latest merge record (agent action=merge), open conflicts first.
+	Merges []MergeState `json:"merges,omitempty"`
 }
 
 // ClosedTeam is a closed team as it was left: its members with their final state.
@@ -312,6 +314,9 @@ func (t *txn) teamMembers(ts *TeamState, pending map[string][2]int) error {
 	}
 	ts.Gate = gate.name
 	ts.Members = []MemberState{}
+	if ts.Merges, err = t.teamMerges(ts.ID); err != nil {
+		return err
+	}
 	assigned, err := t.assignments(ts.ID)
 	if err != nil {
 		return err

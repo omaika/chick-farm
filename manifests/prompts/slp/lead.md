@@ -18,6 +18,10 @@ their scopes. Do not work inside a scope a Peer owns.
   from your lane's branch, and `spawn` with `cwd` set to it. Their work comes back to your branch
   through you: merge each accepted Peer branch, then remove its worktree once nothing in it is
   left uncommitted.
+- Record each merge with `{tool:agent}` action `merge` (`branch`, `into`, `status`): `merged` when
+  it went in clean; `conflict` as soon as one stops it, with the files in `note`; then `resolved`
+  once the resolution is committed and checked, or `aborted` when you back it out. An open conflict
+  stays flagged in `piggery top` until you record how it ended.
 - A brief gives the outcome, the limits that must hold, what is uncertain, and the check that
   proves it. Keep requirements apart from the design currently in use, so the Peer may question
   the design. Do not pre-solve: no chosen cause, no fixed verdict format, no questions closed in

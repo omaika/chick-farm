@@ -99,6 +99,7 @@ func Describe(s core.State, sel string, stats map[string]Stats, now time.Time) D
 			}
 			d.Facts = append(d.Facts, Fact{Label: "gate", Value: OrDash(t.Gate)}, Fact{Label: "held", Value: fmt.Sprint(t.Held)},
 				Fact{Label: "unacked", Value: fmt.Sprint(t.Unacked)}, Fact{Label: "root", Value: Home(t.Root)})
+			d.Facts = append(d.Facts, mergeFacts(*t, now)...)
 			return d
 		case sel == TeamRow+t.ID: // a dead team's line: the team's facts
 			return Detail{Kind: DetailTeam, Title: t.Name, Sub: "open, all gone", Hint: "enter shows its members", Facts: []Fact{
@@ -209,4 +210,26 @@ func taskOf(a *core.Assignment, now time.Time) *Task {
 		t.Mail = &Mail{Head: fmt.Sprintf("#%d ", x.Seq), Title: x.Title, Tail: " · " + Ago(x.At, now) + " ago"}
 	}
 	return t
+}
+
+// mergeFacts are a team's merge records (agent action=merge): each branch's latest, open
+// conflicts first, as "branch → into: status, by, when".
+func mergeFacts(t core.TeamState, now time.Time) []Fact {
+	var out []Fact
+	for _, m := range t.Merges {
+		what := m.Branch
+		if m.Into != "" {
+			what += " → " + m.Into
+		}
+		v := fmt.Sprintf("%s: %s by %s, %s ago", what, m.Status, OrDash(m.By), Ago(m.At, now))
+		if m.Note != "" {
+			v += " (" + m.Note + ")"
+		}
+		label := "merge"
+		if m.Status == core.MergeConflict {
+			label = "conflict"
+		}
+		out = append(out, Fact{Label: label, Value: v})
+	}
+	return out
 }
