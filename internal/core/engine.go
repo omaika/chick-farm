@@ -238,7 +238,9 @@ type roleSpec struct {
 	CanSpawn         []string `yaml:"can_spawn"`
 	CanPin           bool     `yaml:"can_pin"`
 	CanSetCwd        bool     `yaml:"can_set_cwd"` // spawn with a cwd other than the spawner's
-	Spawn            struct {
+	// Skills are the harness skills the role uses (skills.go); for now told in its card, not enforced.
+	Skills skillList `yaml:"skills"`
+	Spawn  struct {
 		Harness  string `yaml:"harness"` // the worker's harness; "" or inherit = the main session's
 		Model    string `yaml:"model"`
 		Thinking string `yaml:"thinking"` // passed to the harness as written

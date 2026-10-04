@@ -21,6 +21,9 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
   or `aborted`, with the branch, what it went into and a note. Each is an event; `ps`/`top` show a
   team's merges in its Overview, and a team with an open conflict is flagged until it is recorded
   resolved or aborted. The `slp` prompts ask the Lead and the Supervisor to record theirs.
+- `roles.<r>.skills` in a template: `inherit` (the default), `[]` or a list of skill names. The
+  role's card tells its participant to use only those, `top` shows them in the Overview, and the
+  templates list names them. It is told, not enforced: the harness still offers its other skills.
 - `spawn.refused_commands` in `config.yaml` (default `[paseo]`): commands a worker's shell must not
   start. Each is a failing command first on every worker's `PATH` (`~/.piggery/bin`), and a Claude
   worker's settings deny it too. `paseo` is refused because it starts agents outside piggery's

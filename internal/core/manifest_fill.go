@@ -24,6 +24,7 @@ var manifestKeys = []yamlfill.Key{
 		{Name: "can_spawn", Default: "[]"},
 		{Name: "can_pin", Default: "false"},
 		{Name: "can_set_cwd", Default: "false"},
+		{Name: "skills", Default: inherit},
 		{Name: "spawn", Fields: []yamlfill.Key{
 			{Name: "harness", Default: inherit},
 			{Name: "model", Default: inherit},

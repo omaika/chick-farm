@@ -22,6 +22,7 @@ roles:
     can_spawn: [lead]
     can_pin: true
     can_set_cwd: true
+    skills: inherit        # inherit: every skill of its harness; or a list: only these (told in its card)
     spawn:                 # how piggery starts this role's workers
       harness: inherit       # inherit: the main session's harness, else config.yaml harness
       model: inherit         # inherit: harness profile, else the main session's (same harness), else harness default
@@ -34,6 +35,7 @@ roles:
     can_spawn: [peer]
     can_pin: true
     can_set_cwd: true
+    skills: inherit        # inherit: every skill of its harness; or a list: only these (told in its card)
     spawn:                 # how piggery starts this role's workers
       harness: inherit       # inherit: the main session's harness, else config.yaml harness
       model: inherit         # inherit: harness profile, else the main session's (same harness), else harness default
@@ -46,6 +48,7 @@ roles:
     can_spawn: []
     can_pin: false
     can_set_cwd: false
+    skills: inherit        # inherit: every skill of its harness; or a list: only these (told in its card)
     spawn:                 # how piggery starts this role's workers
       harness: inherit       # inherit: the main session's harness, else config.yaml harness
       model: inherit         # inherit: harness profile, else the main session's (same harness), else harness default

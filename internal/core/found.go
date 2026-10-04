@@ -174,8 +174,9 @@ type TemplateInfo struct {
 }
 
 type RoleInfo struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
+	Name        string    `json:"name"`
+	Description string    `json:"description,omitempty"`
+	Skills      *[]string `json:"skills,omitempty"` // nil = inherit
 }
 
 // listTemplates is the templates action: what found could use from the caller's cwd, with each
@@ -233,9 +234,9 @@ func (e *Engine) listTemplates(ctx context.Context, c Caller) (AgentResult, erro
 		}
 		sort.Strings(roles)
 		for _, name := range roles {
-			d := m.Roles[name].Description
-			info.Roles = append(info.Roles, RoleInfo{Name: name, Description: d})
-			fmt.Fprintf(&b, "    %s: %s\n", name, orNone(d))
+			d, skills := m.Roles[name].Description, m.Roles[name].Skills
+			info.Roles = append(info.Roles, RoleInfo{Name: name, Description: d, Skills: skillsOf(skills)})
+			fmt.Fprintf(&b, "    %s: %s%s\n", name, orNone(d), skillsNote(skills))
 		}
 		res.Templates = append(res.Templates, info)
 	}

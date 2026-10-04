@@ -104,6 +104,7 @@ brought up.
 | `roles.<r>.can_spawn` | `[]` | Roles this role may spawn |
 | `roles.<r>.can_pin` | `false` | May pin to the team board |
 | `roles.<r>.can_set_cwd` | `false` | May spawn a worker in another directory (see `spawn.allowed_roots`) |
+| `roles.<r>.skills` | `inherit` | The harness skills the role uses: `inherit` (every skill of its harness), `[]` (none) or a list of names. Told in the role's card and shown in `top`; not enforced: the harness still offers its other skills |
 | `roles.<r>.spawn.harness` | `inherit` | Harness of this role's workers; `inherit`: the founding session's, else `config.yaml` |
 | `roles.<r>.spawn.model`, `.thinking` | `inherit` | This role's worker model and thinking level |
 | `roles.<r>.spawn.allow_tools` | `[]` | Tools the harness profile turns off that this role keeps |

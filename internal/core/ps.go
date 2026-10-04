@@ -87,6 +87,9 @@ type MemberState struct {
 	Transcript *Transcript `json:"transcript,omitempty"`
 	// Assignment is the latest mail marked op assign to it (a spawn or resume task is one); nil = none.
 	Assignment *Assignment `json:"assignment,omitempty"`
+	// Skills are its role's skills (roles.<r>.skills), told in its card, not enforced; nil =
+	// inherit (every skill of its harness), empty = none.
+	Skills *[]string `json:"skills,omitempty"`
 }
 
 // Assignment is a member's current task: a stored mail, not a field anyone reports.
@@ -321,6 +324,10 @@ func (t *txn) teamMembers(ts *TeamState, pending map[string][2]int) error {
 	if err != nil {
 		return err
 	}
+	m, err := t.teamManifest(ts.ID)
+	if err != nil {
+		return err
+	}
 	rows, err := t.QueryContext(t.ctx, `SELECT `+participantCols+`, COALESCE(mode,''), last_turn_end, left_at,
 		COALESCE(session_model, model, ''), COALESCE(session_thinking, thinking, ''), COALESCE(capabilities, 'null'),
 		created_at, COALESCE(spawned_by, ''), cwd, protocol_version, transcript, transcript_format
@@ -349,7 +356,8 @@ func (t *txn) teamMembers(ts *TeamState, pending map[string][2]int) error {
 			Headless: mode == modeHeadless, Gate: q.id == gate.id, StateSince: q.stateSince,
 			LastTurnEnd: turn.Int64, Unacked: n[0], Model: model, Thinking: thinking, RunID: q.run, ReportsTo: q.reportsTo,
 			CreatedAt: created, SpawnedBy: spawnedBy, Harness: q.harness, LastActivity: q.lastActivity, Cwd: cwd,
-			ProtocolVersion: intOrNil(proto), Transcript: transcriptOrNil(tpath, tformat), Assignment: assigned[q.id]})
+			ProtocolVersion: intOrNil(proto), Transcript: transcriptOrNil(tpath, tformat), Assignment: assigned[q.id],
+			Skills: skillsOf(m.Roles[q.role].Skills)})
 		json.Unmarshal([]byte(caps), &ts.Members[len(ts.Members)-1].Capabilities)
 	}
 	if err := rows.Err(); err != nil {

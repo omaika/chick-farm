@@ -196,6 +196,7 @@ func (t *txn) roleCard(p participant, m manifest) (string, error) {
 	if ins := strings.TrimSpace(m.Roles[p.role].Instructions); ins != "" {
 		b.WriteString("\n" + WithToolNames(ins, p.toolPrefix) + "\n")
 	}
+	b.WriteString(skillsText(m.Roles[p.role].Skills))
 	b.WriteString(t.sharedPrompt(m.Template, p.role))
 	rows, err := t.QueryContext(t.ctx, `SELECT `+participantCols+` FROM participants WHERE team_id=? AND id<>? ORDER BY created_at, rowid`,
 		p.team, p.id)

@@ -3,6 +3,7 @@ package view
 import (
 	"cmp"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/sting8k/piggery/internal/core"
@@ -184,6 +185,13 @@ func Describe(s core.State, sel string, stats map[string]Stats, now time.Time) D
 		}
 		if mem.LastTurnEnd > 0 {
 			d.Facts = append(d.Facts, Fact{Label: "last turn", Value: Ago(mem.LastTurnEnd, now) + " ago"})
+		}
+		if sk := mem.Skills; sk != nil { // told in its card, not enforced
+			v := "none (prompt only)"
+			if len(*sk) > 0 {
+				v = strings.Join(*sk, ", ") + " (prompt only)"
+			}
+			d.Facts = append(d.Facts, Fact{Label: "skills", Value: v})
 		}
 		d.Facts = append(d.Facts, Fact{Label: "root", Value: Home(team.Root)})
 	} else {
