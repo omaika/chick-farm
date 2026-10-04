@@ -227,6 +227,10 @@ func Run(ctx context.Context, cfg Config) error {
 		core.WithDefaultHarness(settings.Harness), core.WithAllowedRoots(settings.AllowedRoots),
 		core.WithSharedPrompts(promptsFor(s.dir, settings.Prompts, func(m string) { s.log.Warn("shared prompts", "problem", m) })), core.WithNotifySink(s.notifyHook),
 		core.WithTemplates(func(name, _ string) (string, error) { return manifests.Resolve(name, s.dir) }),
+		core.WithSkillFiles(func(template, name string) (string, string, bool) {
+			file, desc, ok := manifests.FindSkill(s.dir, template, name)
+			return file, manifests.WhenToUse(desc), ok
+		}),
 		core.WithTemplateList(func(string) ([]core.TemplateRef, error) {
 			ls, err := manifests.List(s.dir)
 			refs := make([]core.TemplateRef, len(ls))

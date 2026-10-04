@@ -106,7 +106,7 @@ brought up.
 | `roles.<r>.can_spawn` | `[]` | Roles this role may spawn |
 | `roles.<r>.can_pin` | `false` | May pin to the team board. A pin is replaced or removed (`op: replace\|remove`) by its author, a member above the author in the `reports_to` chain, or the team's gate; a pin whose author is gone, by anyone who can pin |
 | `roles.<r>.can_set_cwd` | `false` | May spawn a worker in another directory (see `spawn.allowed_roots`) |
-| `roles.<r>.skills` | `inherit` | The harness skills the role uses: `inherit` (every skill of its harness), `[]` (none) or a list of names. Told in the role's card and shown in `top`; not enforced: the harness still offers its other skills |
+| `roles.<r>.skills` | `inherit` | piggery's skills the role uses: a list of names, or `inherit`/`[]` (none). The role's card names each, with when to use it (its `description` from `Use when`) and its `SKILL.md` to read: nothing is loaded into the harness, whose own skills stay as they are. A name is looked up in the template's `skills/<name>/`, then in `~/.piggery/skills/<name>/` (the built-ins are unpacked there, kept like templates: an edited file is left alone); a name with neither is shown as not installed. Shown in `top`'s Overview and the templates list |
 | `roles.<r>.spawn.harness` | `inherit` | Harness of this role's workers; `inherit`: the founding session's, else `config.yaml` |
 | `roles.<r>.spawn.model`, `.thinking` | `inherit` | This role's worker model and thinking level |
 | `roles.<r>.spawn.allow_tools` | `[]` | Tools the harness profile turns off that this role keeps |

@@ -61,11 +61,15 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
   `diagnosing-bugs`, `security-check`, `test-proof-debt-audit` for workers; `planning-lanes`,
   `council`, `repo-refresh` for a Lead; `grilling`, `pre-mortem`, `architecture-premise-audit`,
   `retrospective` for a supervisor. They use piggery's mail and board, and keep the team's records at
-  the repository's root (`CONTEXT.md`, `NOTEBOOK.md`, `notes/`). Not yet installed with the
-  templates or loaded by workers.
-- `roles.<r>.skills` in a template: `inherit` (the default), `[]` or a list of skill names. The
-  role's card tells its participant to use only those, `top` shows them in the Overview, and the
-  templates list names them. It is told, not enforced: the harness still offers its other skills.
+  the repository's root (`CONTEXT.md`, `NOTEBOOK.md`, `notes/`). They are unpacked into
+  `~/.piggery/skills/` like the templates (an edited file is kept), and `supervisor-executor` and
+  `slp` list them for their roles.
+- `roles.<r>.skills` in a template: piggery's skills the role uses (`inherit`, the default, and
+  `[]`: none). The role's card names each with when to use it and the `SKILL.md` to read, found in
+  the template's `skills/` or in `~/.piggery/skills/`; nothing is loaded into the harness, so it
+  works the same in every harness and in the session you opened, and costs a line per skill until
+  one is read. The harness's own skills are left as they are. `top` shows them in the Overview,
+  and the templates list names them.
 - `spawn.refused_commands` in `config.yaml` (default `[paseo]`): commands a worker's shell must not
   start. Each is a failing command first on every worker's `PATH` (`~/.piggery/bin`), and a Claude
   worker's settings deny it too. `paseo` is refused because it starts agents outside piggery's

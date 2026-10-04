@@ -96,7 +96,7 @@ set `template:` to that name. You do not bring it up: the Human does, or asks a 
 [docs/reference.md](https://github.com/sting8k/piggery/blob/main/docs/reference.md#manifest)):
 `template` (required, the name), `summary`, `when_to_use`, `when_not_to_use`, `auto_join_role`,
 `roles.<role>` (`instructions` or `instructions_file`, `tools`, `can_spawn`, `can_pin`, `can_set_cwd`, `skills`, `spawn`), `routing`, `limits`, `timers`.
-The tools are `send`, `inbox`, `who`, `agent` and no others. The first routing rule matching (sender's
+`skills` lists piggery's skills for the role (in the template's `skills/<name>/SKILL.md` or `~/.piggery/skills/`): its card names each, when to use it and the file to read. The tools are `send`, `inbox`, `who`, `agent` and no others. The first routing rule matching (sender's
 role, recipient's role) decides and none means denied; mail
 between teams ignores routing. A role that can spawn needs `limits.depth` and `limits.concurrency`.
 

@@ -21,7 +21,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-//go:embed *.yaml prompts
+//go:embed *.yaml prompts skills
 var builtin embed.FS
 
 // Templates live in one place, <home>/templates/<name>/:
@@ -162,14 +162,25 @@ func builtinFiles(src fs.FS) (map[string]map[string][]byte, error) {
 // removed is left alone; a file new in this version is added. A built-in template whose
 // directory the user removed is not written again. A same-named template the user made
 // before its built-in existed is left alone.
-func Unpack(home string) error { return unpack(home, builtin) }
+func Unpack(home string) error {
+	if err := unpack(home, builtin); err != nil {
+		return err
+	}
+	return unpackSkills(home, builtin)
+}
 
 func unpack(home string, src fs.FS) error {
 	files, err := builtinFiles(src)
 	if err != nil {
 		return err
 	}
-	root := Dir(home)
+	return unpackSet(Dir(home), files)
+}
+
+// unpackSet writes files (unit -> relative path -> content) under root, one directory per unit,
+// keeping in root's record the hash of each file it wrote (see Unpack). The unit "" is root
+// itself: it is always there, so only its files' record says whether the user changed them.
+func unpackSet(root string, files map[string]map[string][]byte) error {
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return err
 	}
@@ -190,7 +201,7 @@ func unpack(home string, src fs.FS) error {
 			return statErr
 		case statErr != nil && known: // the user removed it
 			continue
-		case statErr == nil && !known: // the user's own template of that name
+		case statErr == nil && !known && name != "": // the user's own of that name
 			continue
 		case !known:
 			rec = map[string]string{}

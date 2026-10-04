@@ -16,15 +16,21 @@ roles:
   any:    {tools: [send, inbox, who], skills: inherit}
 `
 
-// A role's skills are told in its card (only those, none, or nothing said for inherit) and shown
-// in the team's state; a bad list is refused at team up.
+// A role's skills are named in its card with when to use each and the file to read (a missing
+// one as not installed; nothing said for none or inherit) and shown in the team's state; a bad list
+// is refused at team up.
 func TestRoleSkills(t *testing.T) {
 	db, err := store.OpenMemory()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	e := core.New(db)
+	e := core.New(db, core.WithSkillFiles(func(template, name string) (string, string, bool) {
+		if template != "sk" || name != "planning-lanes" {
+			return "", "", false
+		}
+		return "/home/skills/planning-lanes/SKILL.md", "Use when a lane is high-risk.", true
+	}))
 	team, err := e.TeamUp(ctx, core.TeamUpArgs{Manifest: skilled, Cwd: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
@@ -42,14 +48,14 @@ func TestRoleSkills(t *testing.T) {
 		}
 		return id.RoleCard
 	}
-	if c := card("lead"); !strings.Contains(c, "Skills: your role uses only planning-lanes, code-review.") {
+	if c := card("lead"); !strings.Contains(c, "- planning-lanes (/home/skills/planning-lanes/SKILL.md): Use when a lane is high-risk.\n") ||
+		!strings.Contains(c, "- code-review: not installed") {
 		t.Fatalf("lead card = %q", c)
 	}
-	if c := card("quiet"); !strings.Contains(c, "Skills: your role uses none.") {
-		t.Fatalf("quiet card = %q", c)
-	}
-	if c := card("any"); strings.Contains(c, "Skills:") {
-		t.Fatalf("inherit card = %q; want nothing said", c)
+	for _, role := range []string{"quiet", "any"} {
+		if c := card(role); strings.Contains(c, "Skills") {
+			t.Fatalf("%s card = %q; want nothing said", role, c)
+		}
 	}
 	s, err := e.State(ctx, core.StateArgs{})
 	if err != nil {
