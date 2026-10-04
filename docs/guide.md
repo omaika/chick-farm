@@ -255,6 +255,9 @@ timers:
   - {on: executor, silent_for: 20m, notify: reports_to}   # nudge when a worker is silent that long
 ```
 
+An agent that founds a team picks the template by its `when_to_use` and `when_not_to_use` lines
+(`agent action=templates` lists them); with none named it founds `supervisor-executor`.
+
 `piggery` keeps a built-in you never edited up to date; a file you edited or deleted is left as it
 is, and your own templates are never touched. `piggery template new` copies the current built-in
 under a new name if you want the newer version of one you edited. Every key of a manifest is in

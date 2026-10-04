@@ -91,7 +91,9 @@ refused with the reason when the team is brought up.
 | Key | Default | Meaning |
 |---|---|---|
 | `template` | required | The template's name; also the default team name |
-| `summary` | `""` | One line, when to use it (shown when an agent lists templates) |
+| `summary` | `""` | One line, what it is (shown when an agent lists templates) |
+| `when_to_use` | `[]` | Short lines, when the template fits; an agent listing templates checks a goal against them |
+| `when_not_to_use` | `[]` | Short lines, when another template fits better (and which) |
 | `auto_join_role` | `""` | The role the founding session takes; needed when there are several roles |
 | `roles.<r>.description` | `""` | One line, what the role does |
 | `roles.<r>.instructions` / `instructions_file` | none | The role's prompt, inline or a file next to the manifest |

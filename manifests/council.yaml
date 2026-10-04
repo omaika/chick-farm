@@ -3,6 +3,11 @@
 # cannot see each other.
 template: council
 summary: A chair asks independent members, each through one lens, about one hard decision and gives the verdict.
+when_to_use:             # selection criteria: the templates action lists them
+  - One hard decision with real trade-offs, where independent views through different lenses help.
+when_not_to_use:
+  - The goal is to produce changes (code, documents, operations); use supervisor-executor or slp.
+  - The answer can be checked directly, so opinions add nothing.
 auto_join_role: chair   # the founder's role when a session founds a team from this template
 roles:
   chair:

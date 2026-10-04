@@ -5,6 +5,13 @@
 # the supervisor reading the handback and replying with kind=rework, or closing. No extra state.
 template: supervisor-executor
 summary: A supervisor splits a goal (code, research, writing, operations…) into checkable tasks and judges each; executors do them, in parallel only when that helps.
+when_to_use:             # selection criteria: the templates action lists them
+  - The goal splits into tasks, each with a check that proves it done.
+  - Every result should be judged (accepted, reworked or dropped) by one supervisor.
+  - You are not sure which template fits (it is the default).
+when_not_to_use:
+  - The work is several lanes, each needing its own plan, branch and integration (slp).
+  - The goal is one decision that needs independent opinions (council).
 auto_join_role: supervisor   # the founder's role when a session founds a team from this template
 roles:
   supervisor:

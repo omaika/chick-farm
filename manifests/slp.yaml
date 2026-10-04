@@ -7,6 +7,12 @@
 # arguments are mail, with a kind where it helps. The Lead keeps the lane's plan on the board.
 template: slp
 summary: Lanes of work (code, research, writing, operations…) where the Human sets direction through a Supervisor, a Lead owns the plan and integration, and Peers own separate scopes and may question the premise.
+when_to_use:             # selection criteria: the templates action lists them
+  - The work is large enough for several lanes, each with its own plan, branch or worktree, and integration.
+  - Owners of separate scopes should be free to question the premise with evidence.
+when_not_to_use:
+  - One supervisor can split the goal into a handful of checkable tasks (supervisor-executor).
+  - The goal is one decision, not work (council).
 auto_join_role: supervisor   # the founder's role when a session founds a team from this template
 roles:
   supervisor:

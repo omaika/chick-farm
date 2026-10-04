@@ -40,13 +40,15 @@ piggery agent spawn --role R --name N "task"  # if your role may spawn R; its re
                                               # inside the team root or a git worktree of its repo)
 piggery agent resume <worker> ["task"]        # a task comes to it as at spawn
 piggery agent stop|resume|tail <worker>       # tail: read its log before nudging or resuming it
-piggery agent templates                       # the templates a team can be founded from
+piggery agent templates                       # the templates a team can be founded from, with
+                                              # when to use each and when not
 ```
 
 Only when the Human asks: `found` (start a team from a template, rooted at your directory; you
-become its gate), `admit` (take a solo session at your team's root into a role you may spawn),
-`close` (the gate closes its own team; you become solo), `reopen` (a solo at a closed team's root
-opens it again and becomes its gate). In pi these are `piggery_agent` actions.
+become its gate; pick the template whose `when_to_use` fits the goal, default
+`supervisor-executor`), `admit` (take a solo session at your team's root into a role you may
+spawn), `close` (the gate closes its own team; you become solo), `reopen` (a solo at a closed
+team's root opens it again and becomes its gate). In pi these are `piggery_agent` actions.
 
 **Changing a worker's model** (only when the Human asks you to; it is an admin command, so it
 needs `--admin` in your shell):
@@ -70,8 +72,8 @@ set `template:` to that name. You do not bring it up: the Human does, or asks a 
 
 **Manifest fields** (only these exist; each with its default is in
 [docs/reference.md](https://github.com/sting8k/piggery/blob/main/docs/reference.md#manifest)):
-`template` (required, the name), `summary`, `auto_join_role`, `roles.<role>` (`instructions` or
-`instructions_file`, `tools`, `can_spawn`, `can_pin`, `can_set_cwd`, `spawn`), `routing`, `limits`, `timers`.
+`template` (required, the name), `summary`, `when_to_use`, `when_not_to_use`, `auto_join_role`,
+`roles.<role>` (`instructions` or `instructions_file`, `tools`, `can_spawn`, `can_pin`, `can_set_cwd`, `spawn`), `routing`, `limits`, `timers`.
 The tools are `send`, `inbox`, `who`, `agent` and no others. The first routing rule matching (sender's
 role, recipient's role) decides and none means denied; mail
 between teams ignores routing. A role that can spawn needs `limits.depth` and `limits.concurrency`.
