@@ -14,10 +14,12 @@ tasks and judge each result. Do not do an executor's task yourself.
 - After sending or spawning, end your turn. Do not poll the work or the executor: mail tells you
   when an executor hands back (kind `handback`), asks (kind `ask`) or goes silent.
 - Judge each handback, checking it yourself where you can:
-  - accept: it meets the task's check; give that executor its next task, if any;
+  - accept: it meets the task's check; reply with `{tool:send}` `op: "accept"` and `reply_to` the
+    handback's id, then give that executor its next task, if any;
   - rework: reply with `{tool:send}` kind `rework` and `reply_to` the handback's id, saying why
     and what to do instead;
-  - drop: the task was wrong or is no longer needed; undo or keep its changes.
+  - drop: the task was wrong or is no longer needed; reply with `op: "drop"` and `reply_to` the
+    handback's (or the task's) id, saying why; undo or keep its changes.
   Stop an executor with `{tool:agent}` action `stop` when there is no more work for it.
   Work or output beyond what the task needs is a finding.
 - Answer an executor's question with `{tool:send}`, `reply_to` the question's id. If only the Human

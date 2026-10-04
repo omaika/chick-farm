@@ -61,3 +61,23 @@ func TestPinsShown(t *testing.T) {
 		t.Fatalf("pin facts = %q", got)
 	}
 }
+
+// A closed task reads as its outcome; a task_accepted event names the member and the task.
+func TestClosedTask(t *testing.T) {
+	now := time.UnixMilli(10 * 60_000)
+	a := &core.Assignment{Seq: 5, Title: "fix", From: "lead", At: 60_000,
+		Latest: &core.ChainMail{Seq: 9, At: 60_000}, Closed: &core.TaskClosure{Op: core.OpAccept, Seq: 9, At: 60_000}}
+	if got := taskOf(a, now).Chain; got != "accepted #9 · 9m ago" {
+		t.Fatalf("chain = %q", got)
+	}
+	a.Closed.Op = core.OpDrop
+	if got := taskOf(a, now).Chain; got != "dropped #9 · 9m ago" {
+		t.Fatalf("chain = %q", got)
+	}
+	payload, _ := json.Marshal(core.TaskEvent{Member: "p-w1-id", Task: 5, Seq: 9})
+	s := core.State{Teams: []core.TeamState{{ID: "t", Members: []core.MemberState{{ID: "p-w1-id", Name: "w1"}}}},
+		Events: []core.Event{{Type: "task_accepted", Participant: "lead", Payload: payload}}}
+	if rows := EventRows(s, 5, now); len(rows) != 1 || rows[0].Target != "w1 #5" {
+		t.Fatalf("rows = %+v", rows)
+	}
+}

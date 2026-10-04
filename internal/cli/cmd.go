@@ -206,7 +206,7 @@ func (e *env) root() *cobra.Command {
 
 		// Participant (agent) commands and join: hidden, still run.
 		e.cmd("join --team T --role R --name N [--cwd D]", "", "", "", authAdmin, e.join),
-		e.cmd("send <to> [body] [--kind K] [--reply-to ID] [--client-msg-id ID] [--op assign|replace|remove] [--target ID]",
+		e.cmd("send <to> [body] [--kind K] [--reply-to ID] [--client-msg-id ID] [--op assign|accept|drop|replace|remove] [--target ID]",
 			"", "", "", authParticipant, e.send),
 		e.cmd("inbox [--batch N] [--view V]", "", "", "", authParticipant, e.inbox),
 		e.cmd("completion --batch N", "", "", "", authParticipant, e.completion),

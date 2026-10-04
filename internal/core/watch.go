@@ -19,9 +19,10 @@ import (
 // Conditions, one per rule:
 //   - silent_for D: working for longer than D with no turn end.
 //   - idle_with_task_for D: idle for longer than D while its task (its latest mail marked op assign)
-//     waits on it: the newest mail between it and the task's sender, since the task, is the sender's.
+//     waits on it: the newest mail between it and the task's sender, since the task, is the sender's,
+//     and no mail marked op accept or drop has closed it.
 //   - unanswered_for D: a live teammate's mail to it has had no mail from it back to that teammate for
-//     longer than D (the oldest such mail is the incident).
+//     longer than D (the oldest such mail is the incident); an accept or drop wants no answer.
 //   - max_rework N: more than N mails of kind rework to it since its task.
 //
 // escalate_to fires escalate_after (default: the condition's D) after the notice while the same
@@ -433,6 +434,9 @@ func (t *txn) idleTaskIncident(p participant, d time.Duration) (incident, bool, 
 	if err != nil || !ok {
 		return incident{}, false, err
 	}
+	if c, err := t.taskClosure(task.id); err != nil || c != nil {
+		return incident{}, false, err // accepted or dropped: nothing waits on it
+	}
 	// An admin's task (resume) has no sender to hand back to: p hands it back to its reports_to.
 	if task.from == "" {
 		if task.from = p.reportsTo; task.from == "" {
@@ -464,11 +468,11 @@ func (t *txn) unansweredIncident(p participant, d time.Duration) (incident, bool
 	var id, from, kind string
 	err := t.QueryRowContext(t.ctx, `SELECT m.id, m.seq, m.created_at, f.name, COALESCE(m.kind,'')
 		FROM messages m JOIN participants f ON f.id=m.from_id
-		WHERE m.to_id=? AND m.cc_of IS NULL AND m.held_reason IS NULL AND m.created_at<?
+		WHERE m.to_id=? AND m.cc_of IS NULL AND m.held_reason IS NULL AND m.created_at<? AND COALESCE(m.op,'') NOT IN (?, ?)
 		AND f.team_id=? AND f.id<>? AND f.state<>'gone'
 		AND NOT EXISTS (SELECT 1 FROM messages r WHERE r.from_id=m.to_id AND r.to_id=m.from_id AND r.seq>m.seq
 			AND r.cc_of IS NULL)
-		ORDER BY m.seq LIMIT 1`, p.id, t.now-d.Milliseconds(), p.team, p.id).Scan(&id, &seq, &at, &from, &kind)
+		ORDER BY m.seq LIMIT 1`, p.id, t.now-d.Milliseconds(), OpAccept, OpDrop, p.team, p.id).Scan(&id, &seq, &at, &from, &kind)
 	if errors.Is(err, sql.ErrNoRows) {
 		return incident{}, false, nil
 	}

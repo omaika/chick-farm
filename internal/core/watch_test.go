@@ -200,6 +200,27 @@ func TestWatchIdleWithTask(t *testing.T) {
 	f.fires(t, 0)
 }
 
+// An accepted (or dropped) task waits on nobody: idle_with_task_for is quiet, and the accept itself
+// wants no answer for unanswered_for.
+func TestWatchClosedTask(t *testing.T) {
+	f := newTaskWatchFixture(t, "{on: worker, notify: reports_to, idle_with_task_for: 10m}",
+		"{on: worker, notify: reports_to, unanswered_for: 10m}")
+	s, err := f.e.State(ctx, core.StateArgs{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task := s.Teams[0].Members[1].Assignment
+	if task == nil {
+		task = s.Teams[0].Members[0].Assignment
+	}
+	f.presence(t, core.PresenceAgentStart)
+	hb := f.send(t, f.w, core.SendArgs{To: "lead", Kind: "handback", Body: "done", ReplyTo: fmt.Sprintf("#%d", task.Seq)})
+	f.send(t, f.lead, core.SendArgs{To: "w", Op: core.OpAccept, Body: "good", ReplyTo: hb})
+	f.presence(t, core.PresenceAgentSettled)
+	f.advance(30 * time.Minute)
+	f.fires(t, 0)
+}
+
 // unanswered_for: the oldest mail from a live teammate with nothing sent back to its sender.
 func TestWatchUnanswered(t *testing.T) {
 	f := newTaskWatchFixture(t, "{on: lead, notify: self, unanswered_for: 10m, escalate_to: notify}")

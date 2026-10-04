@@ -51,7 +51,7 @@ type Fact struct {
 type Task struct {
 	Title string `json:"title"`           // "#175 the first line of the body"
 	From  string `json:"from"`            // "from alice · 22m ago"
-	Chain string `json:"chain,omitempty"` // "handed back #183 · 3m ago", "reply #12 · 1m ago"; "" when the assignment is the newest
+	Chain string `json:"chain,omitempty"` // "handed back #183 · 3m ago", "reply #12 · 1m ago", "accepted #190 · 1m ago"; "" when the assignment is the newest
 	Mail  *Mail  `json:"mail,omitempty"`
 }
 
@@ -214,6 +214,13 @@ func taskOf(a *core.Assignment, now time.Time) *Task {
 			what = "handed back"
 		}
 		t.Chain = fmt.Sprintf("%s #%d · %s ago", what, l.Seq, Ago(l.At, now))
+	}
+	if c := a.Closed; c != nil {
+		what := "accepted"
+		if c.Op == core.OpDrop {
+			what = "dropped"
+		}
+		t.Chain = fmt.Sprintf("%s #%d · %s ago", what, c.Seq, Ago(c.At, now))
 	}
 	if x := a.Newer; x != nil {
 		t.Mail = &Mail{Head: fmt.Sprintf("#%d ", x.Seq), Title: x.Title, Tail: " · " + Ago(x.At, now) + " ago"}

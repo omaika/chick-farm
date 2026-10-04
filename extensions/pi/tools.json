@@ -24,7 +24,7 @@
 					},
 					"op": {
 						"type": "string",
-						"description": "assign: this mail is the current task of the member it goes to (it must report to you; shown in top; a later assign replaces it; give it a short title on the first line). replace | remove: board only"
+						"description": "assign: this mail is the current task of the member it goes to (it must report to you; shown in top; a later assign replaces it; give it a short title on the first line). accept | drop: close that member's current task (reply_to a mail of its chain, usually the handback; shown in top). replace | remove: board only"
 					},
 					"target": {
 						"type": "string",

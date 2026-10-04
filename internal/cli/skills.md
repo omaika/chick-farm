@@ -28,6 +28,9 @@ piggery completion --batch N                  # ack a batch you pulled with inbo
 - `--op assign` (to a member that reports to you): the mail becomes that member's current task,
   shown in `piggery top`; a later assign replaces it. Put a short title on the first line. A task
   given by `agent spawn|resume` is one already.
+- `--op accept|drop` with `--reply-to` its handback (or any mail of the task's chain): you judged
+  that member's current task done, or no longer wanted. `piggery top` shows it accepted or dropped,
+  the watch timers stop waiting on it, and `piggery log` records `task_accepted`/`task_dropped`.
 - Reply with `--reply-to` the `#N` you answer.
   `kind` is a free label for the receiver; piggery reads only `rework` (a template's `max_rework`
   timer counts it).

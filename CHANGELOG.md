@@ -3,8 +3,13 @@
 ## Unreleased
 
 After upgrading, run `piggery setup --outdated`: the pi and omp integrations are now 5 and dsh 6
-(the `agent` tool has the `merge` action).
+(the `agent` tool has the `merge` action; `send` has `op: accept|drop`).
 
+- `send` with `op: accept` or `op: drop` and `reply_to` a mail of the member's task (its handback,
+  usually), from its `reports_to`, closes that task: `top` shows it accepted or dropped,
+  `idle_with_task_for` stops waiting on it, an accept or drop wants no answer for `unanswered_for`,
+  and the events `task_accepted`/`task_dropped` let `piggery log` count them. The supervisor and
+  slp prompts close each task this way.
 - Timers have more conditions than `silent_for`, one per rule: `idle_with_task_for` (a member idle
   while its task waits on it), `unanswered_for` (a teammate's mail left without anything back) and
   `max_rework` (more `rework` mails than that on one task). `notify: self` reminds the member

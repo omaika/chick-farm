@@ -2,6 +2,7 @@ package view
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -63,7 +64,7 @@ func (t Tone) MarshalText() ([]byte, error) {
 // ToneOf is the tone of an event type.
 func ToneOf(typ string) Tone {
 	switch typ {
-	case "denied", "held", "merge_conflict", "merge_aborted", "watch_escalated":
+	case "denied", "held", "merge_conflict", "merge_aborted", "watch_escalated", "task_dropped":
 		return ToneWarning
 	case "exited", "gone":
 		return ToneDanger
@@ -99,6 +100,12 @@ func EventRows(s core.State, n int, now time.Time) []EventRow {
 		}
 		if b := mergeBranch(ev); b != "" {
 			target = b
+		}
+		if ev.Type == "task_accepted" || ev.Type == "task_dropped" {
+			var te core.TaskEvent
+			if json.Unmarshal(ev.Payload, &te) == nil {
+				target = fmt.Sprintf("%s #%d", name(te.Member), te.Task)
+			}
 		}
 		rows = append(rows, EventRow{EventTime(ev.Ts, now), name(ev.Participant), ev.Type, target, ToneOf(ev.Type)})
 	}

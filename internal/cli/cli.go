@@ -364,7 +364,7 @@ func (e *env) send(args []string) error {
 	fs.StringVar(&a.Kind, "kind", "", "opaque kind")
 	fs.StringVar(&a.ReplyTo, "reply-to", "", "the #N (or id) of the message answered")
 	fs.StringVar(&a.ClientMsgID, "client-msg-id", "", "idempotency key")
-	fs.StringVar(&a.Op, "op", "", "assign (a task for a member that reports to you) | board: replace|remove")
+	fs.StringVar(&a.Op, "op", "", "assign (a task for a member that reports to you) | accept|drop (close its task; with --reply-to) | board: replace|remove")
 	fs.StringVar(&a.Target, "target", "", "board: pin id")
 	pos, err := parse(fs, args)
 	if err != nil {

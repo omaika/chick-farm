@@ -117,6 +117,15 @@ type Assignment struct {
 	// the member a mail outside the chain (a task whose op assign was forgotten, or a note): the
 	// newest such mail.
 	Newer *NewerMail `json:"newer,omitempty"`
+	// Closed is the mail marked op accept or drop that closed it (send); nil = open.
+	Closed *TaskClosure `json:"closed,omitempty"`
+}
+
+// TaskClosure is the mail that closed a task: op accept or drop.
+type TaskClosure struct {
+	Op  string `json:"op"`
+	Seq int64  `json:"seq"`
+	At  int64  `json:"at"`
 }
 
 type ChainMail struct {
@@ -410,6 +419,9 @@ func (t *txn) assignments(team string) (map[string]*Assignment, error) {
 	}
 	rows.Close()
 	for to, a := range out {
+		if a.Closed, err = t.taskClosure(ids[to]); err != nil {
+			return nil, err
+		}
 		var c ChainMail
 		var sender string
 		err := t.QueryRowContext(t.ctx, `WITH RECURSIVE chain(id) AS (

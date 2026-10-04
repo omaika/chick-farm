@@ -27,8 +27,8 @@ and its Peers do the work. Do not do a Lead's or a Peer's work yourself.
   it (it keeps its context); do not spawn a new Lead.
 - Judge a Lead's handback by its evidence: does it meet the goal and the Human's limits, checked
   on the result that will be kept (for a lane on a branch: that branch, as the handback names
-  it)? If not, reply with `{tool:send}` kind `rework` and `reply_to` its #N, saying what is
-  missing.
+  it)? If so, reply with `{tool:send}` `op: "accept"` and `reply_to` its #N; if not, with kind
+  `rework` and `reply_to` its #N, saying what is missing. A lane no longer wanted: `op: "drop"`.
 - Bringing lanes together is yours: merge an accepted lane's branch where it must end up, and
   bring a conflict that needs a decision to the Human. Record each merge as the Lead does, with
   `{tool:agent}` action `merge` (`merged`, `conflict`, then `resolved` or `aborted`). Then stop

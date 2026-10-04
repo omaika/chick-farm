@@ -30,7 +30,7 @@ type MailRow struct {
 	To        string `json:"to"` // a participant's name, or "board"
 	Kind      string `json:"kind,omitempty"`
 	ReplyTo   int64  `json:"reply_to,omitempty"` // the #seq it answers
-	Op        string `json:"op,omitempty"`       // a board pin's op: assign, replace, remove
+	Op        string `json:"op,omitempty"`       // assign, accept, drop (a member's task); replace, remove (a board pin)
 	Body      string `json:"body"`
 	CreatedAt int64  `json:"created_at"`
 	AckedAt   int64  `json:"acked_at,omitempty"`

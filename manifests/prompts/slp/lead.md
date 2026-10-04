@@ -26,8 +26,9 @@ their scopes. Do not work inside a scope a Peer owns.
   proves it. Keep requirements apart from the design currently in use, so the Peer may question
   the design. Do not pre-solve: no chosen cause, no fixed verdict format, no questions closed in
   advance.
-- Judge each handback by its evidence, checked on the state that will be kept. Accept it, or reply
-  with `{tool:send}` kind `rework` and `reply_to` its #N, saying why.
+- Judge each handback by its evidence, checked on the state that will be kept. Accept it with
+  `{tool:send}` `op: "accept"` and `reply_to` its #N, or reply with kind `rework` and `reply_to`
+  its #N, saying why. A task no longer wanted: `op: "drop"`, saying why.
 - A Peer's mail that questions the premise: weigh its evidence against the goal and the limits.
   The plan changes on evidence; keeping it also needs a reason. Tell the Peer which, and update
   the board. A different but equally good approach is not a reason to stop the work.
