@@ -160,7 +160,7 @@ func (t *txn) sendGate(p participant, m manifest, a SendArgs, tr *gateTrace) (ga
 		if err := t.gateBoard(p, m, a); err != nil {
 			return g, err
 		}
-		tr.add("board", "pass", "can_pin", "role "+p.role+" can pin; target/board limit ok")
+		tr.add("board", "pass", "can_pin", "role "+p.role+" can pin; target, ownership and board limit ok")
 		g.toID = AddrBoard
 	default:
 		if a.Target != "" || (a.Op != "" && a.Op != OpAssign && !closesTask(a.Op)) {

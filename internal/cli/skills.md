@@ -23,7 +23,8 @@ piggery completion --batch N                  # ack a batch you pulled with inbo
 ```
 
 - `to`: a teammate's name; another team's name (reaches its gate; only gates write between
-  teams); a solo's name; `board` (pins: `--op replace|remove --target #N`). `notify` is piggery's own
+  teams); a solo's name; `board` (pins: `--op replace|remove --target #N`, of a pin that is yours, of a member under
+  you, or any if you are the gate). `notify` is piggery's own
   channel to the Human; agents cannot send to it.
 - `--op assign` (to a member that reports to you): the mail becomes that member's current task,
   shown in `piggery top`; a later assign replaces it. Put a short title on the first line. A task

@@ -17,6 +17,10 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
   the incident still holds `escalate_after` later (default: the condition's duration; `max_rework`:
   at the next rework). An escalation to `notify` is a notice of kind `watch`. The built-in
   templates use them.
+- A board pin is replaced or removed only by its author, a member above the author in the
+  `reports_to` chain, or the team's gate (`board.not_yours` otherwise); a pin whose author is gone
+  is anyone's who can pin. One Lead can no longer overwrite another lane's plan, nor a `p2p` peer
+  another's pin. The `slp` supervisor removes a lane's pins once the lane is merged or dropped.
 - Timer condition `max_rework_across: N`: more than N `rework` mails sent by a member over two
   or more tasks, so reworks spread thin (two here, one there) that no task's `max_rework` counts
   still reach someone, as a question whether they share one cause. Told once per member, escalated

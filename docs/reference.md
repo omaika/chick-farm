@@ -103,7 +103,7 @@ brought up.
 | `roles.<r>.instructions` / `instructions_file` | none | The role's prompt, inline or a file next to the manifest |
 | `roles.<r>.tools` | `[]` | Model tools the role has: `send` (also board pins and `watch`), `inbox`, `who`, `agent` |
 | `roles.<r>.can_spawn` | `[]` | Roles this role may spawn |
-| `roles.<r>.can_pin` | `false` | May pin to the team board |
+| `roles.<r>.can_pin` | `false` | May pin to the team board. A pin is replaced or removed (`op: replace\|remove`) by its author, a member above the author in the `reports_to` chain, or the team's gate; a pin whose author is gone, by anyone who can pin |
 | `roles.<r>.can_set_cwd` | `false` | May spawn a worker in another directory (see `spawn.allowed_roots`) |
 | `roles.<r>.skills` | `inherit` | The harness skills the role uses: `inherit` (every skill of its harness), `[]` (none) or a list of names. Told in the role's card and shown in `top`; not enforced: the harness still offers its other skills |
 | `roles.<r>.spawn.harness` | `inherit` | Harness of this role's workers; `inherit`: the founding session's, else `config.yaml` |

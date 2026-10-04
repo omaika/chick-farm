@@ -37,7 +37,7 @@ func TestBoardViewIsTheLivePins(t *testing.T) {
 	f := newFixture(t, nil)
 	p1 := f.send(t, f.alice, core.SendArgs{To: "board", Body: "p1"})
 	f.send(t, f.alice, core.SendArgs{To: "board", Body: "p2"})
-	f.send(t, f.bob, core.SendArgs{To: "board", Body: "p1 v2", Op: "replace", Target: p1.ID})
+	f.send(t, f.alice, core.SendArgs{To: "board", Body: "p1 v2", Op: "replace", Target: p1.ID})
 	pins, err := f.e.Board(ctx, f.bob)
 	if err != nil {
 		t.Fatal(err)

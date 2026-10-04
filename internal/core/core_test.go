@@ -464,3 +464,79 @@ func TestNotifyAfterCommitOnly(t *testing.T) {
 		t.Fatalf("notified = %v, want only bob once", notified)
 	}
 }
+
+// A pin is replaced or removed by its author, a member above it in the reports_to chain, or the
+// team's gate; a gone author's pin by anyone who can pin.
+func TestBoardPinOwnership(t *testing.T) {
+	db, err := store.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	rt := &fakeRuntime{}
+	e := core.New(db, core.WithRuntime(rt))
+	man := "template: lanes\nroles:\n" +
+		"  supervisor: {can_spawn: [lead], can_pin: true, tools: [send, inbox, who, agent]}\n" +
+		"  lead: {can_spawn: [peer], can_pin: true, tools: [send, inbox, who, agent]}\n" +
+		"  peer: {can_pin: true, tools: [send, inbox, who]}\n" +
+		"routing:\n  - {from: supervisor, to: lead, allow: true}\n  - {from: lead, to: peer, allow: true}\n" +
+		"limits: {depth: 2, concurrency: 4}\n"
+	team, err := e.TeamUp(ctx, core.TeamUpArgs{Manifest: man, Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	j, err := e.Join(ctx, core.JoinArgs{Team: team.ID, Role: "supervisor", Name: "sup", Cwd: team.RootCwd})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sup, _ := e.Authenticate(ctx, j.ID, j.Token)
+	spawn := func(by core.Caller, role, name string) core.Caller {
+		t.Helper()
+		if _, err := e.Agent(ctx, by, core.AgentArgs{Action: core.AgentSpawn, Role: role, Name: name, Task: "work"}); err != nil {
+			t.Fatal(err)
+		}
+		s := rt.starts[len(rt.starts)-1]
+		c, err := e.Authenticate(ctx, s.ParticipantID, s.Token)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	lead1 := spawn(sup, "lead", "lead1")
+	lead2 := spawn(sup, "lead", "lead2")
+	peer := spawn(lead1, "peer", "p1")
+	pin := func(c core.Caller, body string) string {
+		t.Helper()
+		r, err := e.Send(ctx, c, core.SendArgs{To: core.AddrBoard, Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r.ID
+	}
+	edit := func(c core.Caller, target string) error {
+		_, err := e.Send(ctx, c, core.SendArgs{To: core.AddrBoard, Op: "replace", Target: target, Body: "edited"})
+		return err
+	}
+	plan1, plan2, note := pin(lead1, "plan 1"), pin(lead2, "plan 2"), pin(peer, "note")
+	for _, c := range []struct {
+		who    core.Caller
+		target string
+	}{{lead2, plan1}, {peer, plan1}, {lead2, note}} {
+		var ce *core.Error
+		if err := edit(c.who, c.target); !errors.As(err, &ce) || ce.RuleID != "board.not_yours" {
+			t.Fatalf("edit by %s: %v, want board.not_yours", c.who.ParticipantID, err)
+		}
+	}
+	if err := edit(lead1, note); err != nil { // its peer's pin
+		t.Fatalf("lead edits its peer's pin: %v", err)
+	}
+	if err := edit(sup, plan2); err != nil { // the gate
+		t.Fatalf("gate edits a lead's pin: %v", err)
+	}
+	if err := e.Presence(ctx, lead1, core.PresenceArgs{Event: core.PresenceShutdown}); err != nil {
+		t.Fatal(err)
+	}
+	if err := edit(lead2, plan1); err != nil { // its author is gone
+		t.Fatalf("edit of a gone author's pin: %v", err)
+	}
+}
