@@ -17,11 +17,15 @@ you (admin, read from `~/.piggery/admin.token`) and start the daemon if it is no
 | `skills` | Print the guide for agents |
 | `team up <template\|path.yaml> [--cwd D] [--name N]` | Start a team from a template in `~/.piggery/templates`, or a manifest file |
 | `team down <team>` | Close a team: workers stopped, nothing acked |
+| `team migrate <team> <template\|path.yaml> [--map old=new]` | Move an open team to another template, keeping its members, mail, board and workers: the gate takes the new template's `auto_join_role`, every other member the role `--map` names for its role (repeat it, or comma-separate), else the role of the same name; a member left without a role refuses the whole move. Each live member gets a mail from `engine` with its new role card; routing the new template does not allow between a member and the one it reports to is a `warning:` line |
 | `template new <name> [--from <built-in>]` | Copy a built-in (default `p2p`) to `~/.piggery/templates/<name>` |
 | `ps [--json\|--view]` | Daemon, teams, members, solo sessions and pending mail, once; `--view` prints what `top` shows (rows, header counts, events, the latest notices as `notices`, the update notice as `daemon.update`, each row's actions and Overview) as one JSON document with a `version` field, for the Paseo plugin |
 | `top` | The same, live, with context, turns and the latest events and notices (Notices at the bottom left once there is a notice, Events on the right, split where the list and the Overview are; stacked in a narrow window); its header says `vX available: piggery update` when a newer release is out; `↑/↓` select (`PgUp`/`PgDn`, `Home`/`End` in a long list, which scrolls under its header; `↑ N`/`↓ N` on the border count hidden lines), `enter` opens or closes (a member's details, a team's members, a team's gone-members line; kept for the next `top`), `t` switches Overview and Tail, `e` opens the events list (folded to the latest event by default; kept for the next `top`), `n` opens or closes the Notices box (the latest notices; folded to the newest one by default, kept for the next `top`, like `e`), `x` kills the selected headless worker (asks once); a click on the model (blue, `▾`) in a live headless worker's Overview, or `M`, opens a picker for its model and thinking level (`enter` or a double-click applies, `esc` closes) |
+| `web [--addr A] [--open]` | `top` in the browser: the same rows, tabs, Overview, Tail, events and notices, refreshed every second, with `x` (kill, asks once) and the model picker (`M`, or a click on the model). A Board tab (`b`) shows the live pins of the selected row's team, whole, oldest first. A Tasks tab (`a`) lists `tasks` for the selected team, or, on a directory's line (now selectable), for every team rooted there. A Mail tab (`m`) lists the selected participant's mail, sent and received (a team's line: the team's), newest first, with each message's state (pending, delivered, acked, held, board); it reads with the admin verb `mail`, which acks nothing, so the agents still get their mail. It listens on `127.0.0.1:4125` by default and refuses a non-loopback `--addr` (it acts as admin); the page carries a token made at each start, and a request whose `Host` is not that address is refused. Its first call starts the daemon like `top`; the page's calls never do. Folds, tab and selection are kept in the browser. `--open` opens the page |
 | `tail <worker> [-n N] [-f] [--team T]` | A worker's log or a session's transcript, readable; `--json` raw; `--view` the readable lines with their kind, for the Paseo plugin |
-| `log [--after SEQ] [--team T] [--limit N]` | Decisions and lifecycle events |
+| `log [--after SEQ] [--team T] [--limit N]` | Decisions and lifecycle events, oldest first; `--team` takes a team's id or name |
+| `mail [--team T] [--participant X] [--before SEQ] [--limit N] [--pins]` | Messages, newest first (`--pins` with `--team`: only the team's live board pins, oldest first): `#N`, time, sender -> recipient, kind, op and what it answers, state (pending, delivered, acked, held, board) and the first line; `--team` and `--participant` take an id or a name; `--before` the last `#N` for the next page (default 50, at most 200). Reads with the admin verb `mail`, which acks nothing |
+| `tasks [--team T \| --dir D]` | Tasks given (mails with `op: assign`), newest first, in a team or in every team rooted at a directory, open and closed (default: the current directory): `#N`, team/member, who gave it, and what became of it: `open`, `handed back` (the member's last mail to the giver is a handback), `accepted`, `dropped`, or `replaced` (the member was given another task before this one was closed); the reworks it took, and `never handed back` for one accepted without a handback. Read-only |
 | `abort <x> [--team T]` | Cancel x's current turn; it stays alive |
 | `kill <worker> [--team T]` (short: `x`) | Kill a worker: SIGTERM so its harness cleans up, then after up to 2s SIGKILL for it and every process left in its tree; `x` on the selected worker in `top` asks `kill <name>? y/n` and does the same |
 | `resume <worker> [--team T]` | Start a stopped worker again in its session, with its model, thinking level and harness |
@@ -63,6 +67,7 @@ Environment: `PIGGERY_DISABLED=1` makes an adapter inert (a session that must no
 | `display.columns` | `[role, state, harness, model, ctx, turns, unacked, age, since, cwd]` | Columns `top` and `ps` show after the name, in order (`top` has no `unacked` column: its header, team lines and details give it); **live**, read on every run. An unknown name warns and shows the defaults; `-` where a row has no value, `model` is the id without its provider, `cwd` is blank in the project directory itself |
 | `update.check` | `true` | Once a day the daemon asks GitHub `releases/latest` (the call `update --check` makes) and keeps the tag in `cache/update.json`; while a newer release exists `top`, `ps --view` (`daemon.update`), `setup` and `update --check` say `vX available: piggery update`. Nothing is installed. A build from source (`dev`, `dev-<sha>`) never asks, a failed call is silent and tried again the next day; `false` turns it off (the daemon reads it at its start) |
 | `spawn.allowed_roots` | `[]` | Absolute directories outside a team's root where a worker may be placed with a `cwd` (the root and its repo's git worktrees always may) |
+| `spawn.refused_commands` | `[paseo]` | Commands a worker's shell must not start. Each is a command in `~/.piggery/bin`, first on every worker's `PATH`, that says why and fails; a Claude worker's settings also deny it (`Bash(<cmd>)`, `Bash(<cmd> *)`, and through `npx`/`bunx`), which holds even when your shell profile puts the real one first again. `paseo` is refused because it starts agents outside piggery's limits and routing. A guard against mistakes, not a wall: an absolute path still runs it. `[]` refuses nothing |
 | `prompts` | `[]` | Your files by role: a list of `{file, roles}`; `file` is relative to `~/.piggery` or absolute; `roles` are `<role>`, `<template>/<role>`, `<template>/*` (every role of that template), `*` (every role of every template, and solo) or `solo`; a file several entries name is added once. The list needs a restart; a file is read at each session start. A bad entry is skipped with a line in `serve.log` |
 
 ## harness/<harness>.json
@@ -84,25 +89,29 @@ resume. Missing keys are added with their defaults; `setup --force` writes the d
 ## Manifest
 
 `~/.piggery/templates/<name>/manifest.yaml`. Frozen into a team when it is brought up: a change
-applies to the next team only. A manifest with a key this list does not have, or a wrong value, is
-refused with the reason when the team is brought up.
+applies to the next team only, or to an open team moved to it with `team migrate`. A manifest
+with a key this list does not have, or a wrong value, is refused with the reason when the team is
+brought up.
 
 | Key | Default | Meaning |
 |---|---|---|
 | `template` | required | The template's name; also the default team name |
-| `summary` | `""` | One line, when to use it (shown when an agent lists templates) |
+| `summary` | `""` | One line, what it is (shown when an agent lists templates) |
+| `when_to_use` | `[]` | Short lines, when the template fits; an agent listing templates checks a goal against them |
+| `when_not_to_use` | `[]` | Short lines, when another template fits better (and which) |
 | `auto_join_role` | `""` | The role the founding session takes; needed when there are several roles |
 | `roles.<r>.description` | `""` | One line, what the role does |
 | `roles.<r>.instructions` / `instructions_file` | none | The role's prompt, inline or a file next to the manifest |
 | `roles.<r>.tools` | `[]` | Model tools the role has: `send` (also board pins and `watch`), `inbox`, `who`, `agent` |
 | `roles.<r>.can_spawn` | `[]` | Roles this role may spawn |
-| `roles.<r>.can_pin` | `false` | May pin to the team board |
+| `roles.<r>.can_pin` | `false` | May pin to the team board. A pin is replaced or removed (`op: replace\|remove`) by its author, a member above the author in the `reports_to` chain, or the team's gate; a pin whose author is gone, by anyone who can pin |
 | `roles.<r>.can_set_cwd` | `false` | May spawn a worker in another directory (see `spawn.allowed_roots`) |
+| `roles.<r>.skills` | `inherit` | The harness skills the role uses: `inherit` (every skill of its harness), `[]` (none) or a list of names. Told in the role's card and shown in `top`; not enforced: the harness still offers its other skills |
 | `roles.<r>.spawn.harness` | `inherit` | Harness of this role's workers; `inherit`: the founding session's, else `config.yaml` |
 | `roles.<r>.spawn.model`, `.thinking` | `inherit` | This role's worker model and thinking level |
 | `roles.<r>.spawn.allow_tools` | `[]` | Tools the harness profile turns off that this role keeps |
 | `routing[]` | none = all denied | `{from, to, allow, cc}`; the first rule matching a sender and receiver decides; `cc` roles get a copy; a `to: notify` line is ignored with a warning (`piggery check` shows it), since only piggery writes to `notify` |
-| `timers[]` | `[]` | `{on: <role>, silent_for: <duration>, notify: <role\|reports_to>}`: one notice when a working member has no turn end for that long; `notify: notify` is ignored |
+| `timers[]` | `[]` | `{on: <role>, <condition>, notify: <role\|reports_to\|self>, escalate_to: <role\|reports_to\|self\|notify>, escalate_after: <duration>}`: one notice from `engine` per incident, to `notify` (`self`: the member itself; `notify: notify` is ignored). One condition per rule: `silent_for: D` (working with no turn end for D), `idle_with_task_for: D` (idle for D while its task, its latest mail with `op: assign`, waits on it: since the task, the last mail between it and the task's sender is the sender's, and no `op: accept`/`drop` closed it), `unanswered_for: D` (a live teammate's mail to it has had nothing back to that teammate for D; an accept or drop wants no answer), `max_rework: N` (more than N mails of kind `rework` to it since its task), `max_rework_across: N` (more than N mails of kind `rework` sent by it, over two or more tasks, a rework's task being its receiver's latest `op: assign` mail before it; told once per member). `escalate_to` (optional) is told once when the same incident still holds `escalate_after` after the notice (default: the condition's D; `max_rework` and `max_rework_across`: at the next rework, no `escalate_after`); `escalate_to: notify` is a notice of kind `watch` to the Human's notify hooks |
 | `limits.depth` | none | How deep spawn chains may go |
 | `limits.concurrency` | none | Live workers at once (the built-ins set 10) |
 | `limits.messages_per_participant_per_minute` | none | Flood guard; a mail over it is held until you `release` it |
@@ -163,9 +172,10 @@ file) is not run; `piggery check` warns about it. `setup notify` writes and list
 | `settled` | the gate sent its last message and no member is working or has mail waiting |
 | `failed` | the gate's turn on team mail failed: that mail waits for new mail to be given again |
 | `gate_lost` | a team has no live member left (its mail and workers wait for the next gate) |
+| `watch` | a timer escalated to `notify`: a member's incident (idle with a task, unanswered mail, too many reworks…) outlasted the notice to its team |
 
 Only the engine writes to `notify`: an agent's send to it is refused, and a `to: notify` routing
-line or `notify: notify` timer is ignored with a warning.
+line or `notify: notify` timer is ignored with a warning; `escalate_to: notify` is the engine's own.
 
 ## Notes per harness
 

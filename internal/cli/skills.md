@@ -23,13 +23,18 @@ piggery completion --batch N                  # ack a batch you pulled with inbo
 ```
 
 - `to`: a teammate's name; another team's name (reaches its gate; only gates write between
-  teams); a solo's name; `board` (pins: `--op replace|remove --target #N`). `notify` is piggery's own
+  teams); a solo's name; `board` (pins: `--op replace|remove --target #N`, of a pin that is yours, of a member under
+  you, or any if you are the gate). `notify` is piggery's own
   channel to the Human; agents cannot send to it.
 - `--op assign` (to a member that reports to you): the mail becomes that member's current task,
   shown in `piggery top`; a later assign replaces it. Put a short title on the first line. A task
   given by `agent spawn|resume` is one already.
+- `--op accept|drop` with `--reply-to` its handback (or any mail of the task's chain): you judged
+  that member's current task done, or no longer wanted. `piggery top` shows it accepted or dropped,
+  the watch timers stop waiting on it, and `piggery log` records `task_accepted`/`task_dropped`.
 - Reply with `--reply-to` the `#N` you answer.
-  `kind` is a free label for the receiver; piggery never reads it.
+  `kind` is a free label for the receiver; piggery reads only `rework` (a template's `max_rework`
+  timer counts it).
 - After sending, end your turn: mail wakes you. Do not poll.
 
 ## Workers and teams
@@ -40,13 +45,18 @@ piggery agent spawn --role R --name N "task"  # if your role may spawn R; its re
                                               # inside the team root or a git worktree of its repo)
 piggery agent resume <worker> ["task"]        # a task comes to it as at spawn
 piggery agent stop|resume|tail <worker>       # tail: read its log before nudging or resuming it
-piggery agent templates                       # the templates a team can be founded from
+piggery agent templates                       # the templates a team can be founded from, with
+                                              # when to use each and when not
+piggery agent merge <branch> merged|conflict|resolved|aborted [--into B] [--note "files…"]
+                                              # record a merge you did: top shows it, and a
+                                              # conflict stays flagged until resolved or aborted
 ```
 
 Only when the Human asks: `found` (start a team from a template, rooted at your directory; you
-become its gate), `admit` (take a solo session at your team's root into a role you may spawn),
-`close` (the gate closes its own team; you become solo), `reopen` (a solo at a closed team's root
-opens it again and becomes its gate). In pi these are `piggery_agent` actions.
+become its gate; pick the template whose `when_to_use` fits the goal, default
+`supervisor-executor`), `admit` (take a solo session at your team's root into a role you may
+spawn), `close` (the gate closes its own team; you become solo), `reopen` (a solo at a closed
+team's root opens it again and becomes its gate). In pi these are `piggery_agent` actions.
 
 **Changing a worker's model** (only when the Human asks you to; it is an admin command, so it
 needs `--admin` in your shell):
@@ -70,8 +80,8 @@ set `template:` to that name. You do not bring it up: the Human does, or asks a 
 
 **Manifest fields** (only these exist; each with its default is in
 [docs/reference.md](https://github.com/sting8k/piggery/blob/main/docs/reference.md#manifest)):
-`template` (required, the name), `summary`, `auto_join_role`, `roles.<role>` (`instructions` or
-`instructions_file`, `tools`, `can_spawn`, `can_pin`, `can_set_cwd`, `spawn`), `routing`, `limits`, `timers`.
+`template` (required, the name), `summary`, `when_to_use`, `when_not_to_use`, `auto_join_role`,
+`roles.<role>` (`instructions` or `instructions_file`, `tools`, `can_spawn`, `can_pin`, `can_set_cwd`, `skills`, `spawn`), `routing`, `limits`, `timers`.
 The tools are `send`, `inbox`, `who`, `agent` and no others. The first routing rule matching (sender's
 role, recipient's role) decides and none means denied; mail
 between teams ignores routing. A role that can spawn needs `limits.depth` and `limits.concurrency`.
@@ -83,6 +93,8 @@ names no tool is refused. A handback, a question or a report is a `send` with a 
 persona. Stay neutral about the kind of work: a task is a result, its bounds, and its check. Spell
 out the lifecycle: give the next task to a free worker instead of spawning; end the turn after
 sending; when a worker goes silent, read its tail, then nudge or resume it; stop workers when done.
+Timers (`timers:`) watch the lifecycle for you, one condition each: `silent_for`, `idle_with_task_for`,
+`unanswered_for`, `max_rework`, `max_rework_across`, each with `notify` and optionally `escalate_to` (`notify` is the Human).
 
 **The Human's own rules** are not in a template: `prompts:` in `~/.piggery/config.yaml` (see the reference) appends a file of theirs to the cards of the roles it names, so do not copy such rules into a template's prompts.
 

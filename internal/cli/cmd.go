@@ -134,12 +134,14 @@ func (e *env) root() *cobra.Command {
 	)
 
 	root.SetHelpCommandGroupID(grpStart)
-	team := &cobra.Command{Use: "team", Short: "Bring a team up or down", GroupID: grpTeams}
+	team := &cobra.Command{Use: "team", Short: "Bring a team up or down, or move it to another template", GroupID: grpTeams}
 	team.AddCommand(
 		e.cmd("up <template|path.yaml> [--cwd D] [--name N]", "Start a team from a template in ~/.piggery/templates", "",
 			"piggery team up supervisor-executor --cwd .\npiggery team up ./team.yaml --cwd . --name demo", authAdmin, e.teamUp),
 		e.cmd("down <team>", "Close a team: stop its workers; nothing is acked", "",
 			"piggery team down demo", authAdmin, e.teamDown),
+		e.cmd("migrate <team> <template|path.yaml> [--map old=new]", "Move an open team to another template, keeping its members and mail", "",
+			"piggery team migrate demo slp\npiggery team migrate demo supervisor-executor --map peer=executor", authAdmin, e.teamMigrate),
 	)
 	template := &cobra.Command{Use: "template", Short: "Make your own team template", GroupID: grpTeams}
 	template.AddCommand(e.cmd("new <name> [--from <built-in>]", "Copy a built-in (default p2p) to ~/.piggery/templates/<name>", "",
@@ -165,8 +167,14 @@ func (e *env) root() *cobra.Command {
 			"piggery ps", authAdmin, e.ps),
 		e.cmd("top", "The same, live, with the latest events and a worker's tail", grpWatch,
 			"piggery top", authAdmin, e.top),
+		e.cmd("web [--addr 127.0.0.1:4125] [--open]", "The same as top, in the browser (loopback only)", grpWatch,
+			"piggery web --open", authAdmin, e.web),
 		e.cmd("tail <worker> [-n N] [-f|--view] [--team T]", "A worker's rpc log, readable (--json raw)", grpWatch,
 			"piggery tail w1 -n 50 -f", authAdmin, e.tail),
+		e.cmd("mail [--team T] [--participant X] [--before SEQ] [--limit N] [--pins]", "Messages, newest first, with kind and state; nothing is acked", grpWatch,
+			"piggery mail --team demo\npiggery mail --participant w1 --limit 100\npiggery mail --team demo --pins", authAdmin, e.mailCmd),
+		e.cmd("tasks [--team T | --dir D]", "Tasks given, newest first, and what became of each (default: this directory's teams)", grpWatch,
+			"piggery tasks\npiggery tasks --team demo", authAdmin, e.tasksCmd),
 		e.cmd("log [--after SEQ] [--team T] [--limit N]", "Decisions and lifecycle events", grpWatch,
 			"piggery log --after 100 --limit 50", authAdmin, e.logCmd),
 		e.cmd("abort <x> [--team T]", "Cancel x's current turn; it stays alive", grpStepIn,
@@ -200,14 +208,14 @@ func (e *env) root() *cobra.Command {
 
 		// Participant (agent) commands and join: hidden, still run.
 		e.cmd("join --team T --role R --name N [--cwd D]", "", "", "", authAdmin, e.join),
-		e.cmd("send <to> [body] [--kind K] [--reply-to ID] [--client-msg-id ID] [--op assign|replace|remove] [--target ID]",
+		e.cmd("send <to> [body] [--kind K] [--reply-to ID] [--client-msg-id ID] [--op assign|accept|drop|replace|remove] [--target ID]",
 			"", "", "", authParticipant, e.send),
 		e.cmd("inbox [--batch N] [--view V]", "", "", "", authParticipant, e.inbox),
 		e.cmd("completion --batch N", "", "", "", authParticipant, e.completion),
 		e.cmd("who", "", "", "", authParticipant, func(a []string) error { return simple(e, "who", a, proto.VerbWho, printWho) }),
 		e.cmd("board", "", "", "", authParticipant, func(a []string) error { return simple(e, "board", a, proto.VerbBoard, printBoard) }),
 		e.cmd("watch add|list", "", "", "", authParticipant, e.watch),
-		e.cmd("agent spawn|stop|resume|tail|templates|close|reopen", "", "", "", authParticipant, e.agent),
+		e.cmd("agent spawn|stop|resume|tail|templates|close|reopen|merge", "", "", "", authParticipant, e.agent),
 		// The Claude Code adapter: Claude runs these, never a person.
 		e.cmd("mcp", "", "", "", authLocal, e.mcp),
 		e.cmd("hook claude <HookEvent>", "", "", "", authLocal, e.hook),

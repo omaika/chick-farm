@@ -97,6 +97,9 @@ func (e *Engine) send(ctx context.Context, c Caller, a SendArgs) (SendResult, er
 			return t.holdNoGate(p, res.ID, g.toID)
 		}
 		if res.RuleID == "" {
+			if closesTask(a.Op) {
+				return t.taskClosedEvent(p, g.toID, a.Op, g.task, res)
+			}
 			return nil
 		}
 		res.Held = true
@@ -128,8 +131,9 @@ type gatePlan struct {
 	toID, recipient string // recipient: participant to wake ("" for notify/board)
 	rule, key       string // limit that holds it ("" = none) and its notice dedupe key
 	cc              []participant
-	crossTeam       bool // to another team's gate: no routing, no cc
-	noGate          bool // to a member that left while its team has no gate: held (leave.go)
+	crossTeam       bool      // to another team's gate: no routing, no cc
+	noGate          bool      // to a member that left while its team has no gate: held (leave.go)
+	task            watchTask // op accept/drop: the assignment it closes
 }
 
 // gateTrace records each check of the send gate, for `why`. A nil trace records nothing.
@@ -156,11 +160,11 @@ func (t *txn) sendGate(p participant, m manifest, a SendArgs, tr *gateTrace) (ga
 		if err := t.gateBoard(p, m, a); err != nil {
 			return g, err
 		}
-		tr.add("board", "pass", "can_pin", "role "+p.role+" can pin; target/board limit ok")
+		tr.add("board", "pass", "can_pin", "role "+p.role+" can pin; target, ownership and board limit ok")
 		g.toID = AddrBoard
 	default:
-		if a.Target != "" || (a.Op != "" && a.Op != OpAssign) {
-			return g, errf(CodeInvalid, "target and op replace/remove are only valid for board; op assign for a member")
+		if a.Target != "" || (a.Op != "" && a.Op != OpAssign && !closesTask(a.Op)) {
+			return g, errf(CodeInvalid, "target and op replace/remove are only valid for board; op assign, accept or drop for a member")
 		}
 		if a.To == AddrNotify { // the engine's channel: no routing rule opens it
 			return g, deny(&p, "send", "routing", "routing.notify", "notify is the engine's channel: agents cannot send to it", nil,
@@ -174,11 +178,15 @@ func (t *txn) sendGate(p participant, m manifest, a SendArgs, tr *gateTrace) (ga
 			return g, err
 		}
 		g.toID, toRole, g.recipient = q.id, q.role, q.id
-		if other != nil && a.Op == OpAssign {
-			return g, errf(CodeInvalid, "op assign is for a member of your team")
+		if other != nil && a.Op != "" {
+			return g, errf(CodeInvalid, "op %s is for a member of your team", a.Op)
 		}
 		if a.Op == OpAssign && q.reportsTo != p.id {
 			return g, deny(&p, "send", "permission", "assign.not_reports_to", "only the member's reports_to can assign it a task", nil,
+				map[string]any{"to": a.To})
+		}
+		if closesTask(a.Op) && q.reportsTo != p.id {
+			return g, deny(&p, "send", "permission", "assign.not_reports_to", "only the member's reports_to can "+a.Op+" its task", nil,
 				map[string]any{"to": a.To})
 		}
 		if other != nil {
@@ -216,6 +224,13 @@ func (t *txn) sendGate(p participant, m manifest, a SendArgs, tr *gateTrace) (ga
 			return g, internal(err)
 		}
 		tr.add("reply_to", "pass", "", "in view")
+	}
+	if closesTask(a.Op) {
+		var err error
+		if g.task, err = t.taskClosedBy(g.toID, a); err != nil {
+			return g, err
+		}
+		tr.add("task", "pass", "", fmt.Sprintf("closes task #%d", g.task.seq))
 	}
 	if a.To == AddrBoard {
 		return g, nil // board pins are exempt from mail limits (the board has its own) and cc

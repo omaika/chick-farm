@@ -100,6 +100,10 @@ type Options struct {
 	// OnUnbatchedTurn is called when a turn no delivered batch started begins or ends
 	// (core.Engine.UnbatchedTurn).
 	OnUnbatchedTurn func(participantID, runID, event string)
+	// Refused are the commands a worker's shell must not start (refused.go): RefusedDir goes
+	// first on every worker's PATH, and a Claude worker's settings deny them. WriteRefused
+	// writes that directory; the daemon calls it before starting any worker.
+	Refused []string
 	// StopWait is how long Stop waits after closing stdin before SIGTERM (default 10s);
 	// TermWait how long after SIGTERM before SIGKILL (default 5s); KillWait the same for Kill
 	// (default 2s).
@@ -286,7 +290,7 @@ func (d *Driver) Start(_ context.Context, s core.Spec) (core.Proc, error) {
 
 	cmd := exec.Command(l.cmd, l.args...)
 	cmd.Dir = s.Cwd
-	cmd.Env = workerEnv(os.Environ(), s, l.env)
+	cmd.Env = refusedPath(workerEnv(os.Environ(), s, l.env), d.dir, d.opts.Refused)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = inR, outW, stderr
 	platform.NewGroup(cmd)
 	err = cmd.Start()

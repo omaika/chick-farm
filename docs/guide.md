@@ -34,9 +34,10 @@ shows one. Install and first steps are in the [README](../README.md).
 3. The gate spawns workers as the template allows, gives them tasks by mail, and gets a handback
    from each. You keep talking to the gate, in your own session.
 
-Built-in templates: `supervisor-executor` (a supervisor splits the goal; executors do the tasks),
-`slp` (a supervisor steers a lane: one lead, peers with separate scopes), `council` (a chair asks
-members for independent views on one decision), `p2p` (peers that talk freely and spawn peers).
+Built-in templates: `supervisor-executor` (the default: a supervisor splits the goal; executors do
+the tasks), `slp` (a supervisor steers a lane: one lead, peers with separate scopes), `council` (a
+chair asks members for independent views on one decision), `p2p` (peers that talk freely and spawn
+peers).
 
 **Mixing harnesses.** A role can name a harness (`spawn: {harness: claude}` in the template); a
 role that names none uses the harness of the session that founded the team, and a founder with none
@@ -105,6 +106,7 @@ one JSON line on stdin: `id, kind, team, gate, dir, body, created_at`. `gate` is
 | `settled` | the gate sent its last message and no member is working or has mail waiting |
 | `failed` | the gate's turn on team mail failed: that mail waits for new mail to be given again |
 | `gate_lost` | a team has no live member left (its mail and workers wait for the next gate) |
+| `watch` | a template's timer escalated to you: a member idle with its task, mail left unanswered, or a task reworked too often, after its team was told |
 
 It never fires for a chat turn of yours, a turn that is not over mail, an interrupted turn, a
 headless worker, or a member that is not the gate; whether you are looking at the session is for
@@ -250,9 +252,18 @@ routing:
   - {from: supervisor, to: executor, allow: true}
   - {from: executor, to: supervisor, allow: true, cc: [supervisor]}
 limits: {depth: 2, concurrency: 4, messages_per_participant_per_minute: 30}
-timers:
-  - {on: executor, silent_for: 20m, notify: reports_to}   # nudge when a worker is silent that long
+timers:                        # one condition each; see reference.md for all of them
+  - {on: executor, silent_for: 20m, notify: reports_to}           # nudge when a worker is silent that long
+  - {on: executor, idle_with_task_for: 10m, notify: reports_to}   # it stopped without handing its task back
+  - {on: executor, max_rework: 3, notify: reports_to, escalate_to: notify}   # a rework loop: tell you too
+  - {on: supervisor, unanswered_for: 30m, notify: self, escalate_to: notify} # remind it, then you
 ```
+
+An agent that founds a team picks the template by its `when_to_use` and `when_not_to_use` lines
+(`agent action=templates` lists them); with none named it founds `supervisor-executor`. A team that
+turns out to need another shape moves without starting over: `piggery team migrate <team> slp`
+(add `--map old=new` for roles the new template lacks); its members keep their mail and get their
+new role card by mail.
 
 `piggery` keeps a built-in you never edited up to date; a file you edited or deleted is left as it
 is, and your own templates are never touched. `piggery template new` copies the current built-in

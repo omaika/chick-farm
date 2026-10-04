@@ -1,6 +1,8 @@
 package view
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -62,7 +64,7 @@ func (t Tone) MarshalText() ([]byte, error) {
 // ToneOf is the tone of an event type.
 func ToneOf(typ string) Tone {
 	switch typ {
-	case "denied", "held":
+	case "denied", "held", "merge_conflict", "merge_aborted", "watch_escalated", "task_dropped":
 		return ToneWarning
 	case "exited", "gone":
 		return ToneDanger
@@ -96,13 +98,50 @@ func EventRows(s core.State, n int, now time.Time) []EventRow {
 		if ev.RefID != "" && ev.RefID != ev.Participant && ev.RefID != ev.TeamID {
 			target = name(ev.RefID)
 		}
+		if b := mergeBranch(ev); b != "" {
+			target = b
+		}
+		if ev.Type == "task_accepted" || ev.Type == "task_dropped" {
+			var te core.TaskEvent
+			if json.Unmarshal(ev.Payload, &te) == nil {
+				target = fmt.Sprintf("%s #%d", name(te.Member), te.Task)
+			}
+		}
 		rows = append(rows, EventRow{EventTime(ev.Ts, now), name(ev.Participant), ev.Type, target, ToneOf(ev.Type)})
 	}
 	return rows
 }
 
+// mergeBranch is a merge event's branch (into its target, when recorded), else "".
+func mergeBranch(ev core.Event) string {
+	switch ev.Type {
+	case "merged", "merge_conflict", "merge_resolved", "merge_aborted":
+	default:
+		return ""
+	}
+	var m core.MergeState
+	if json.Unmarshal(ev.Payload, &m) != nil || m.Branch == "" {
+		return ""
+	}
+	if m.Into != "" {
+		return m.Branch + " → " + m.Into
+	}
+	return m.Branch
+}
+
+// OpenConflicts are the team's branches whose latest merge record is a conflict.
+func OpenConflicts(t core.TeamState) []core.MergeState {
+	var out []core.MergeState
+	for _, m := range t.Merges {
+		if m.Status == core.MergeConflict {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
 // NoticeRow is one notice top shows: when, where it is from (the team, or the gate of a solo), its
-// kind (reply, settled, failed, gate_lost) and the sentence the engine wrote.
+// kind (reply, settled, failed, gate_lost, watch) and the sentence the engine wrote.
 type NoticeRow struct {
 	Age   string `json:"age"`
 	Where string `json:"where"`

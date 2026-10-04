@@ -65,3 +65,86 @@ func TestAssignment(t *testing.T) {
 		t.Fatalf("assign by a non-reports_to: %v", err)
 	}
 }
+
+// A task is closed by a mail marked op accept or drop from the member's reports_to, in reply to a
+// mail of the task's chain: ps shows the outcome, an event records it, and a closed task cannot be
+// closed again. A later assign is a new, open task.
+func TestTaskAcceptDrop(t *testing.T) {
+	f := newAgentFixture(t)
+	w := f.spawn(t, f.lead, "w1")
+	send := func(from core.Caller, a core.SendArgs) (core.SendResult, error) { return f.e.Send(ctx, from, a) }
+	assignment := func() core.Assignment {
+		t.Helper()
+		s, err := f.e.State(ctx, core.StateArgs{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range s.Teams[0].Members {
+			if m.Name == "w1" && m.Assignment != nil {
+				return *m.Assignment
+			}
+		}
+		t.Fatal("w1 has no assignment")
+		return core.Assignment{}
+	}
+	a := assignment()
+	handback, err := send(w, core.SendArgs{To: "lead", Kind: "handback", Body: "done", ReplyTo: fmt.Sprintf("#%d", a.Seq)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := send(f.lead, core.SendArgs{To: "w1", Op: core.OpAccept, Body: "good"}); code(err) != core.CodeInvalid {
+		t.Fatalf("accept without reply_to: %v", err)
+	}
+	if _, err := send(f.lead2, core.SendArgs{To: "w1", Op: core.OpAccept, Body: "good", ReplyTo: fmt.Sprintf("#%d", handback.Seq)}); rule(err) != "permission/assign.not_reports_to" &&
+		rule(err) != "visibility/reply_to.not_in_view" {
+		t.Fatalf("accept by a non-reports_to: %v", err)
+	}
+	note, err := send(f.lead, core.SendArgs{To: "w1", Body: "a note"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := send(f.lead, core.SendArgs{To: "w1", Op: core.OpAccept, Body: "good", ReplyTo: fmt.Sprintf("#%d", note.Seq)}); code(err) != core.CodeInvalid {
+		t.Fatalf("accept outside the task's chain: %v", err)
+	}
+	if a.Closed != nil {
+		t.Fatalf("open task closed = %+v", a.Closed)
+	}
+	acc, err := send(f.lead, core.SendArgs{To: "w1", Op: core.OpAccept, Body: "good", ReplyTo: fmt.Sprintf("#%d", handback.Seq)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := assignment().Closed; c == nil || c.Op != core.OpAccept || c.Seq != acc.Seq {
+		t.Fatalf("after accept closed = %+v; want accept #%d", c, acc.Seq)
+	}
+	if _, err := send(f.lead, core.SendArgs{To: "w1", Op: core.OpDrop, Body: "no", ReplyTo: fmt.Sprintf("#%d", handback.Seq)}); code(err) != core.CodeInvalid ||
+		!strings.Contains(err.Error(), "already closed: accepted") {
+		t.Fatalf("closing a closed task: %v", err)
+	}
+	next, err := send(f.lead, core.SendArgs{To: "w1", Op: core.OpAssign, Body: "second"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a2 := assignment(); a2.Seq != next.Seq || a2.Closed != nil {
+		t.Fatalf("after a new assign = %+v; want it open", a2)
+	}
+	drop, err := send(f.lead, core.SendArgs{To: "w1", Op: core.OpDrop, Body: "not needed", ReplyTo: fmt.Sprintf("#%d", next.Seq)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := assignment().Closed; c == nil || c.Op != core.OpDrop || c.Seq != drop.Seq {
+		t.Fatalf("after drop closed = %+v", c)
+	}
+	evs, err := f.e.Log(ctx, core.LogArgs{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, ev := range evs {
+		if ev.Type == "task_accepted" || ev.Type == "task_dropped" {
+			got = append(got, fmt.Sprintf("%s %s", ev.Type, ev.Payload))
+		}
+	}
+	if len(got) != 2 || !strings.Contains(got[0], fmt.Sprintf(`"task":%d`, a.Seq)) || !strings.Contains(got[1], fmt.Sprintf(`"task":%d`, next.Seq)) {
+		t.Fatalf("task events = %q", got)
+	}
+}

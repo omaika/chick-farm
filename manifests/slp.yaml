@@ -7,6 +7,12 @@
 # arguments are mail, with a kind where it helps. The Lead keeps the lane's plan on the board.
 template: slp
 summary: Lanes of work (code, research, writing, operations…) where the Human sets direction through a Supervisor, a Lead owns the plan and integration, and Peers own separate scopes and may question the premise.
+when_to_use:             # selection criteria: the templates action lists them
+  - The work is large enough for several lanes, each with its own plan, branch or worktree, and integration.
+  - Owners of separate scopes should be free to question the premise with evidence.
+when_not_to_use:
+  - One supervisor can split the goal into a handful of checkable tasks (supervisor-executor).
+  - The goal is one decision, not work (council).
 auto_join_role: supervisor   # the founder's role when a session founds a team from this template
 roles:
   supervisor:
@@ -16,6 +22,7 @@ roles:
     can_spawn: [lead]
     can_pin: true
     can_set_cwd: true
+    skills: inherit        # inherit: every skill of its harness; or a list: only these (told in its card)
     spawn:                 # how piggery starts this role's workers
       harness: inherit       # inherit: the main session's harness, else config.yaml harness
       model: inherit         # inherit: harness profile, else the main session's (same harness), else harness default
@@ -28,6 +35,7 @@ roles:
     can_spawn: [peer]
     can_pin: true
     can_set_cwd: true
+    skills: inherit        # inherit: every skill of its harness; or a list: only these (told in its card)
     spawn:                 # how piggery starts this role's workers
       harness: inherit       # inherit: the main session's harness, else config.yaml harness
       model: inherit         # inherit: harness profile, else the main session's (same harness), else harness default
@@ -40,6 +48,7 @@ roles:
     can_spawn: []
     can_pin: false
     can_set_cwd: false
+    skills: inherit        # inherit: every skill of its harness; or a list: only these (told in its card)
     spawn:                 # how piggery starts this role's workers
       harness: inherit       # inherit: the main session's harness, else config.yaml harness
       model: inherit         # inherit: harness profile, else the main session's (same harness), else harness default
@@ -51,9 +60,15 @@ routing:
   - {from: lead, to: peer, allow: true, cc: []}
   - {from: peer, to: lead, allow: true, cc: []}
   - {from: supervisor, to: peer, allow: true, cc: [lead]}   # the Lead sees what the Supervisor tells a Peer
-timers:
+timers:                  # one condition each; escalate_to: told again when the incident outlasts the notice
   - {on: peer, notify: reports_to, silent_for: 20m}
   - {on: lead, notify: reports_to, silent_for: 30m}
+  - {on: peer, notify: reports_to, idle_with_task_for: 10m}
+  - {on: lead, notify: reports_to, idle_with_task_for: 15m}
+  - {on: peer, notify: reports_to, max_rework: 3, escalate_to: supervisor}
+  - {on: lead, notify: reports_to, max_rework: 3, escalate_to: notify}
+  - {on: lead, notify: reports_to, max_rework_across: 3, escalate_to: notify}
+  - {on: supervisor, notify: self, unanswered_for: 30m, escalate_to: notify}
 limits:                  # none: no limit
   depth: 2                 # how deep spawned_by chains may go
   concurrency: 10           # live workers at once

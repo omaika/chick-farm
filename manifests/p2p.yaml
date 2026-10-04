@@ -1,6 +1,12 @@
 # Null model: peers talk freely. Used by step-1 acceptance.
 template: p2p
 summary: Peers that talk freely and spawn more peers; no roles, no review loop.
+when_to_use:             # selection criteria: the templates action lists them
+  - Exploration among equals, where nobody needs to judge the results.
+  - The Human asks for the loosest shape on purpose.
+when_not_to_use:
+  - Results must be checked or reworked before they count (supervisor-executor).
+  - The work needs a plan and integration across scopes (slp).
 auto_join_role: peer   # the only role
 roles:
   peer:
@@ -10,6 +16,7 @@ roles:
     can_spawn: [peer]
     can_pin: true               # board is a separate permission (spec 2b)
     can_set_cwd: false
+    skills: inherit        # inherit: every skill of its harness; or a list: only these (told in its card)
     spawn:                 # how piggery starts this role's workers
       harness: inherit       # inherit: the main session's harness, else config.yaml harness
       model: inherit         # inherit: harness profile, else the main session's (same harness), else harness default

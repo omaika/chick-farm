@@ -292,6 +292,10 @@ func TestHookClaude(t *testing.T) {
 	d := startFakeDaemon(t, dir, func(string, json.RawMessage) any {
 		return core.HarnessEventResult{Text: "[piggery] 1 new message", Block: true}
 	})
+	// Not under a harness either: run inside a Claude session, the real lookup finds it.
+	old := sessionHost
+	sessionHost = func(...string) string { return "" }
+	t.Cleanup(func() { sessionHost = old })
 	var out bytes.Buffer
 	e := &env{dir: dir, stdout: &out}
 	stdin := `{"session_id":"s","prompt_id":"p1","stop_hook_active":true,"hook_event_name":"Stop"}`

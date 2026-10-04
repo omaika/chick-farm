@@ -30,7 +30,7 @@ func soloCard(p participant) string {
 		"Mail from others arrives as a user message with a header naming the sender and the message's #N." +
 		toolTips(p.toolPrefix, soloTools) +
 		" Other teams are reached only through their gate: send to a team's name to reach it." +
-		" When asked to set up a team, use " + p.toolPrefix + "agent action=found (template default p2p);" +
+		" When asked to set up a team, use " + p.toolPrefix + "agent action=found (template default " + DefaultTemplate + "; " + p.toolPrefix + "agent action=templates says when to use each);" +
 		" the team is rooted at your directory and you become its gate. When asked to reopen a closed team rooted" +
 		" at your directory, use " + p.toolPrefix + "agent action=reopen team=<name>." +
 		// The guide is not installed as a harness skill (it would go stale): the model asks for it.

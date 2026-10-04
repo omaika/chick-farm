@@ -28,6 +28,16 @@ const (
 // OpAssign marks a mail as the recipient's current assignment (ps shows it).
 const OpAssign = "assign"
 
+// OpAccept and OpDrop close the recipient's current assignment: a reply (reply_to) in its chain,
+// from whoever may assign it a task. ps shows the outcome; an event records it.
+const (
+	OpAccept = "accept"
+	OpDrop   = "drop"
+)
+
+// closesTask reports whether op closes the recipient's current assignment.
+func closesTask(op string) bool { return op == OpAccept || op == OpDrop }
+
 // BoardLimit is the max number of live pins per team.
 const BoardLimit = 20
 
@@ -135,7 +145,7 @@ type JoinResult struct {
 
 type LogArgs struct {
 	After int64  `json:"after,omitempty"` // events with seq > After
-	Team  string `json:"team,omitempty"`
+	Team  string `json:"team,omitempty"`  // a team id or name
 	Limit int    `json:"limit,omitempty"` // default 200
 }
 
@@ -157,7 +167,7 @@ type SendArgs struct {
 	Kind        string `json:"kind,omitempty"`
 	Body        string `json:"body"`
 	ReplyTo     string `json:"reply_to,omitempty"`
-	Op          string `json:"op,omitempty"`     // "" | assign (to a member that reports to the sender) | replace | remove (board)
+	Op          string `json:"op,omitempty"`     // "" | assign | accept | drop (to a member that reports to the sender) | replace | remove (board)
 	Target      string `json:"target,omitempty"` // board only: live pin id for replace/remove
 	ClientMsgID string `json:"client_msg_id,omitempty"`
 }

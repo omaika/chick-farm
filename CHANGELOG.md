@@ -2,6 +2,72 @@
 
 ## Unreleased
 
+After upgrading, run `piggery setup --outdated`: the pi and omp integrations are now 5 and dsh 6
+(the `agent` tool has the `merge` action; `send` has `op: accept|drop`).
+
+- `send` with `op: accept` or `op: drop` and `reply_to` a mail of the member's task (its handback,
+  usually), from its `reports_to`, closes that task: `top` shows it accepted or dropped,
+  `idle_with_task_for` stops waiting on it, an accept or drop wants no answer for `unanswered_for`,
+  and the events `task_accepted`/`task_dropped` let `piggery log` count them. The supervisor and
+  slp prompts close each task this way.
+- Timers have more conditions than `silent_for`, one per rule: `idle_with_task_for` (a member idle
+  while its task waits on it), `unanswered_for` (a teammate's mail left without anything back) and
+  `max_rework` (more `rework` mails than that on one task). `notify: self` reminds the member
+  itself, and `escalate_to` (a role, `reports_to`, `self` or `notify`, the Human) is told once when
+  the incident still holds `escalate_after` later (default: the condition's duration; `max_rework`:
+  at the next rework). An escalation to `notify` is a notice of kind `watch`. The built-in
+  templates use them.
+- `piggery tasks` and a Tasks tab (`a`) in `web` list the tasks given in a team, or in every team
+  of a project directory (a directory's line in `web` is selectable for it), newest first, with
+  what became of each: open, handed back, accepted, dropped, or replaced by a next task before
+  anyone closed it, and the reworks it took. A task accepted without ever being handed back says
+  so.
+- `web` has a Board tab (`b`): the live pins of the selected row's team, whole, oldest first, so
+  a lane's plan is read where the Overview only lists its first line. `piggery mail --team T
+  --pins` prints the same.
+- A board pin is replaced or removed only by its author, a member above the author in the
+  `reports_to` chain, or the team's gate (`board.not_yours` otherwise); a pin whose author is gone
+  is anyone's who can pin. One Lead can no longer overwrite another lane's plan, nor a `p2p` peer
+  another's pin. The `slp` supervisor removes a lane's pins once the lane is merged or dropped.
+- Timer condition `max_rework_across: N`: more than N `rework` mails sent by a member over two
+  or more tasks, so reworks spread thin (two here, one there) that no task's `max_rework` counts
+  still reach someone, as a question whether they share one cause. Told once per member, escalated
+  at the next rework. `slp` watches its Leads with it, `supervisor-executor` its supervisor.
+  The DB moves to schema v23 for it (an index on rework mails; the old DB is backed up first).
+- The built-in role prompts guard against more agent-team anti-patterns: an executor or Peer names
+  a missing mechanism instead of building a stand-in, changes the thing rather than wrapping it,
+  checks before giving in to a doubt, and does not reshape the product to make a check pass; a
+  supervisor or Lead gives outcomes rather than implementation steps, says where the undone part
+  of an accepted handback goes, and fixes a shared cause instead of its symptoms.
+- `found` without a template founds `supervisor-executor`, not `p2p`.
+- Templates have `when_to_use` and `when_not_to_use` lines; `agent action=templates` lists them so
+  an agent picks a template by criteria, not by its summary alone. The built-ins have them.
+- `piggery team migrate <team> <template> [--map old=new]` moves an open team to another template,
+  keeping its members, mail, board and workers; each live member gets its new role card by mail.
+- `agent action=merge` (`piggery agent merge`) records a merge: `merged`, `conflict`, `resolved`
+  or `aborted`, with the branch, what it went into and a note. Each is an event; `ps`/`top` show a
+  team's merges in its Overview, and a team with an open conflict is flagged until it is recorded
+  resolved or aborted. The `slp` prompts ask the Lead and the Supervisor to record theirs.
+- `top` and `web` list a team's live board pins in its Overview (`#N`, first line, who pinned it,
+  when, and how many lines), so the Human sees a lane's plan; `ps --json` has them as `pins`.
+- `piggery mail`: a team's or a participant's messages, newest first, with kind and state; it acks
+  nothing. `log --team` takes a team's name too.
+- Eleven skills for templates' roles, in `manifests/skills/`, adapted from seatworks: `test-first`,
+  `diagnosing-bugs`, `security-check`, `test-proof-debt-audit` for workers; `planning-lanes`,
+  `council`, `repo-refresh` for a Lead; `grilling`, `pre-mortem`, `architecture-premise-audit`,
+  `retrospective` for a supervisor. They use piggery's mail and board, and keep the team's records at
+  the repository's root (`CONTEXT.md`, `NOTEBOOK.md`, `notes/`). Not yet installed with the
+  templates or loaded by workers.
+- `roles.<r>.skills` in a template: `inherit` (the default), `[]` or a list of skill names. The
+  role's card tells its participant to use only those, `top` shows them in the Overview, and the
+  templates list names them. It is told, not enforced: the harness still offers its other skills.
+- `spawn.refused_commands` in `config.yaml` (default `[paseo]`): commands a worker's shell must not
+  start. Each is a failing command first on every worker's `PATH` (`~/.piggery/bin`), and a Claude
+  worker's settings deny it too. `paseo` is refused because it starts agents outside piggery's
+  limits, routing and view. `[]` turns it off.
+- `piggery web` shows `top` in the browser at http://127.0.0.1:4125 (loopback only): the same
+  rows, tabs, Overview, Tail, events and notices, live, with kill and the model picker, and a Mail
+  tab: a participant's or a team's messages and where each stands. Reading acks nothing.
 - Windows: pi and omp workers start without Developer Mode. A worker's agent dir links to your
   own entries with symlinks, which Windows only allows with Developer Mode on or elevated; without
   that, a folder is now linked as a junction and a file as a hard link.

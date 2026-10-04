@@ -183,19 +183,7 @@ func (e *env) teamUp(args []string) error {
 	if err != nil {
 		return err
 	}
-	// A path is read as is; a template name is ~/.piggery/templates/<name> (the daemon unpacks
-	// the built-ins there when it starts, so connect first).
-	var manifest string
-	if ext := filepath.Ext(pos[0]); ext == ".yaml" || ext == ".yml" {
-		manifest, err = manifests.Inline(pos[0])
-	} else {
-		var c *Client
-		if c, err = e.connect(); err != nil {
-			return err
-		}
-		c.Close()
-		manifest, err = manifests.Resolve(pos[0], e.dir)
-	}
+	manifest, err := e.manifestArg(pos[0])
 	if err != nil {
 		return err
 	}
@@ -203,6 +191,68 @@ func (e *env) teamUp(args []string) error {
 		func(w io.Writer, t core.Team) {
 			fmt.Fprintf(w, "team %s name=%s template=%s root=%s\n", t.ID, t.Name, t.Template, t.RootCwd)
 			for _, warn := range t.Warnings {
+				fmt.Fprintf(w, "warning: %s\n", warn)
+			}
+		})
+}
+
+// manifestArg reads team up's and team migrate's <template|path.yaml>: a path is read as is; a
+// template name is ~/.piggery/templates/<name> (the daemon unpacks the built-ins there when it
+// starts, so connect first).
+func (e *env) manifestArg(arg string) (string, error) {
+	if ext := filepath.Ext(arg); ext == ".yaml" || ext == ".yml" {
+		return manifests.Inline(arg)
+	}
+	c, err := e.connect()
+	if err != nil {
+		return "", err
+	}
+	c.Close()
+	return manifests.Resolve(arg, e.dir)
+}
+
+// roleMap is team migrate's --map old=new, repeated or comma-separated.
+type roleMap map[string]string
+
+func (r roleMap) String() string { return fmt.Sprint(map[string]string(r)) }
+
+func (r roleMap) Set(v string) error {
+	for _, pair := range strings.Split(v, ",") {
+		old, nw, ok := strings.Cut(strings.TrimSpace(pair), "=")
+		if !ok || old == "" || nw == "" {
+			return fmt.Errorf("--map %q: want old=new", pair)
+		}
+		r[old] = nw
+	}
+	return nil
+}
+
+func (e *env) teamMigrate(args []string) error {
+	fs := e.flags("team migrate")
+	moves := roleMap{}
+	fs.Var(moves, "map", "old=new: the new role of members whose role the template lacks (repeat, or comma-separate)")
+	pos, err := parse(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 2 {
+		return fmt.Errorf("%w: team migrate <team> <template|path.yaml> [--map old=new]", errUsage)
+	}
+	manifest, err := e.manifestArg(pos[1])
+	if err != nil {
+		return err
+	}
+	return do(e, proto.VerbTeamMigrate, core.TeamMigrateArgs{Team: pos[0], Manifest: manifest, Map: moves},
+		func(w io.Writer, r core.TeamMigrateResult) {
+			fmt.Fprintf(w, "team %s: template %s -> %s\n", r.Name, r.From, r.To)
+			for _, mv := range r.Moves {
+				if mv.From == mv.To {
+					fmt.Fprintf(w, "  %s: %s\n", mv.Name, mv.To)
+				} else {
+					fmt.Fprintf(w, "  %s: %s -> %s\n", mv.Name, mv.From, mv.To)
+				}
+			}
+			for _, warn := range r.Warnings {
 				fmt.Fprintf(w, "warning: %s\n", warn)
 			}
 		})
@@ -235,7 +285,7 @@ func (e *env) logCmd(args []string) error {
 	fs := e.flags("log")
 	var a core.LogArgs
 	fs.Int64Var(&a.After, "after", 0, "events with seq > after")
-	fs.StringVar(&a.Team, "team", "", "team id")
+	fs.StringVar(&a.Team, "team", "", "team (id or name)")
 	fs.IntVar(&a.Limit, "limit", 0, "max events")
 	pos, err := parse(fs, args)
 	if err != nil {
@@ -245,6 +295,100 @@ func (e *env) logCmd(args []string) error {
 		return fmt.Errorf("%w: log takes no arguments", errUsage)
 	}
 	return do(e, proto.VerbLog, a, func(w io.Writer, evs []core.Event) { e.printEvents(evs) })
+}
+
+// tasksCmd lists the tasks of a team, or of every team rooted at a directory (the admin verb tasks).
+func (e *env) tasksCmd(args []string) error {
+	fs := e.flags("tasks")
+	var a core.TasksArgs
+	fs.StringVar(&a.Team, "team", "", "a team (id or name)")
+	fs.StringVar(&a.Dir, "dir", "", "a project directory: every team rooted there (default: the current directory)")
+	pos, err := parse(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 0 {
+		return fmt.Errorf("%w: tasks takes no arguments", errUsage)
+	}
+	if a.Team == "" {
+		if a.Dir == "" {
+			a.Dir = "."
+		}
+		if a.Dir, err = filepath.Abs(a.Dir); err != nil {
+			return err
+		}
+	}
+	return do(e, proto.VerbTasks, a, func(w io.Writer, r core.TasksResult) {
+		if len(r.Tasks) == 0 {
+			fmt.Fprintln(w, "No tasks.")
+		}
+		for _, k := range r.Tasks {
+			notes := ""
+			if k.Reworks > 0 {
+				notes += " · " + view.Plural(k.Reworks, "rework")
+			}
+			if k.State == core.TaskAccepted && k.Handbacks == 0 {
+				notes += " · never handed back"
+			}
+			fmt.Fprintf(w, "#%d %s %s/%s <- %s %s%s: %s\n", k.Seq, clock(k.At), k.Team, k.Member, k.From,
+				strings.ReplaceAll(k.State, "_", " "), notes, k.Title)
+		}
+		if r.More {
+			fmt.Fprintln(w, "(older tasks left out)")
+		}
+	})
+}
+
+// mailCmd lists messages as the operator reads them (the admin verb mail): nothing is acked.
+func (e *env) mailCmd(args []string) error {
+	fs := e.flags("mail")
+	var a core.MailArgs
+	fs.StringVar(&a.Team, "team", "", "a team (id or name): its messages")
+	fs.StringVar(&a.Participant, "participant", "", "a participant (id or name): its mail, sent and received")
+	fs.Int64Var(&a.Before, "before", 0, "only messages older than this #seq (the next page)")
+	fs.IntVar(&a.Limit, "limit", 0, "max messages (default 50, at most 200)")
+	fs.BoolVar(&a.Pins, "pins", false, "only the team's live board pins, oldest first (needs --team)")
+	pos, err := parse(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 0 {
+		return fmt.Errorf("%w: mail takes no arguments", errUsage)
+	}
+	return do(e, proto.VerbMail, a, func(w io.Writer, r core.MailResult) {
+		if a.Pins {
+			if err := pinsOnly(r); err != nil {
+				fmt.Fprintln(w, err)
+				return
+			}
+		}
+		for _, m := range r.Messages {
+			tags := strings.TrimSpace(strings.Join([]string{m.Kind, m.Op}, " "))
+			if m.ReplyTo != 0 {
+				tags = strings.TrimSpace(fmt.Sprintf("%s re #%d", tags, m.ReplyTo))
+			}
+			if tags != "" {
+				tags = " [" + tags + "]"
+			}
+			fmt.Fprintf(w, "#%d %s %s -> %s%s %s: %s\n", m.Seq, clock(m.CreatedAt), m.From, m.To, tags, m.State, firstLine(m.Body))
+		}
+		if r.More && len(r.Messages) > 0 {
+			fmt.Fprintf(w, "(older: --before %d)\n", r.Messages[len(r.Messages)-1].Seq)
+		}
+	})
+}
+
+// firstLine is s's first non-empty line, at most 120 runes.
+func firstLine(s string) string {
+	for _, l := range strings.Split(s, "\n") {
+		if l = strings.TrimSpace(l); l != "" {
+			if r := []rune(l); len(r) > 120 {
+				return string(r[:119]) + "…"
+			}
+			return l
+		}
+	}
+	return ""
 }
 
 func (e *env) printEvents(evs []core.Event) {
@@ -269,7 +413,7 @@ func (e *env) send(args []string) error {
 	fs.StringVar(&a.Kind, "kind", "", "opaque kind")
 	fs.StringVar(&a.ReplyTo, "reply-to", "", "the #N (or id) of the message answered")
 	fs.StringVar(&a.ClientMsgID, "client-msg-id", "", "idempotency key")
-	fs.StringVar(&a.Op, "op", "", "assign (a task for a member that reports to you) | board: replace|remove")
+	fs.StringVar(&a.Op, "op", "", "assign (a task for a member that reports to you) | accept|drop (close its task; with --reply-to) | board: replace|remove")
 	fs.StringVar(&a.Target, "target", "", "board: pin id")
 	pos, err := parse(fs, args)
 	if err != nil {
@@ -467,13 +611,23 @@ func (e *env) agent(args []string) error {
 		fs.StringVar(&a.Cwd, "cwd", "", "the worker's directory, relative to yours or absolute (your role needs can_set_cwd)")
 	case core.AgentTail:
 		fs.IntVar(&a.Lines, "lines", 20, "records to show")
+	case core.AgentMerge:
+		fs.StringVar(&a.Into, "into", "", "the branch it was merged into")
+		fs.StringVar(&a.Note, "note", "", "one line: the conflicting files, how it was resolved…")
 	case core.AgentStop, core.AgentResume, core.AgentTemplates, core.AgentClose, core.AgentReopen:
 	default:
-		return fmt.Errorf("%w: agent spawn|stop|resume|tail|templates|close|reopen", errUsage)
+		return fmt.Errorf("%w: agent spawn|stop|resume|tail|templates|close|reopen|merge", errUsage)
 	}
 	pos, err := parse(fs, rest)
 	if err != nil {
 		return err
+	}
+	if action == core.AgentMerge {
+		if len(pos) != 2 {
+			return fmt.Errorf("%w: agent merge <branch> merged|conflict|resolved|aborted [--into B] [--note N]", errUsage)
+		}
+		a.Branch, a.Status = pos[0], pos[1]
+		return do(e, proto.VerbAgent, a, func(w io.Writer, r core.AgentResult) { fmt.Fprintln(w, r.Text) })
 	}
 	if action == core.AgentReopen {
 		if len(pos) != 1 {

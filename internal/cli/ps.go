@@ -123,6 +123,10 @@ func psLines(r proto.PsResult, now time.Time, stats map[string]view.Stats, cols 
 				t := teams[h.ID]
 				out = append(out, psLine{kind: "team", text: fmt.Sprintf("  team %s  gate=%s  held=%d unacked=%d",
 					t.Name, cmp.Or(t.Gate, "(none)"), t.Held, t.Unacked)})
+				for _, c := range view.OpenConflicts(t) {
+					out = append(out, psLine{kind: "team", text: strings.TrimSpace(fmt.Sprintf("    merge conflict: %s -> %s by %s, %s ago  %s",
+						c.Branch, cmp.Or(c.Into, "?"), c.By, view.Ago(c.At, now), c.Note))})
+				}
 			}
 			for _, row := range b.Rows {
 				switch row.Kind {

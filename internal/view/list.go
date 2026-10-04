@@ -341,6 +341,11 @@ func BuildList(in ListInput) List {
 				if t.Held > 0 {
 					b.Head.Flags = append(b.Head.Flags, fmt.Sprintf("%d held", t.Held))
 				}
+				if n := len(OpenConflicts(*t)); n == 1 {
+					b.Head.Flags = append(b.Head.Flags, "1 merge conflict")
+				} else if n > 1 {
+					b.Head.Flags = append(b.Head.Flags, fmt.Sprintf("%d merge conflicts", n))
+				}
 				if !open {
 					b.Head.Counts = teamCounts(*t)
 				}

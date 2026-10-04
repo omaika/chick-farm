@@ -217,11 +217,15 @@ func isReserved(name string) bool {
 
 type manifest struct {
 	// Template is the template's name (a stored snapshot from before the rename has it as model:).
-	Template string              `yaml:"template"`
-	Summary  string              `yaml:"summary"` // one line: when to use the template (templates action)
-	Roles    map[string]roleSpec `yaml:"roles"`
-	Routing  []routeRule         `yaml:"routing"`
-	Limits   limitMap            `yaml:"limits"`
+	Template string `yaml:"template"`
+	Summary  string `yaml:"summary"` // one line: what the template is (templates action)
+	// WhenToUse and WhenNotToUse are the template's selection criteria, one short line each: what
+	// an agent picking a template for a goal checks it against (templates action).
+	WhenToUse    []string            `yaml:"when_to_use"`
+	WhenNotToUse []string            `yaml:"when_not_to_use"`
+	Roles        map[string]roleSpec `yaml:"roles"`
+	Routing      []routeRule         `yaml:"routing"`
+	Limits       limitMap            `yaml:"limits"`
 	// AutoJoinRole is the role join.auto gives a session in a team with several roles.
 	AutoJoinRole string `yaml:"auto_join_role"`
 }
@@ -234,7 +238,9 @@ type roleSpec struct {
 	CanSpawn         []string `yaml:"can_spawn"`
 	CanPin           bool     `yaml:"can_pin"`
 	CanSetCwd        bool     `yaml:"can_set_cwd"` // spawn with a cwd other than the spawner's
-	Spawn            struct {
+	// Skills are the harness skills the role uses (skills.go); for now told in its card, not enforced.
+	Skills skillList `yaml:"skills"`
+	Spawn  struct {
 		Harness  string `yaml:"harness"` // the worker's harness; "" or inherit = the main session's
 		Model    string `yaml:"model"`
 		Thinking string `yaml:"thinking"` // passed to the harness as written

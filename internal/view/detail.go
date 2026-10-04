@@ -3,6 +3,7 @@ package view
 import (
 	"cmp"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/sting8k/piggery/internal/core"
@@ -50,7 +51,7 @@ type Fact struct {
 type Task struct {
 	Title string `json:"title"`           // "#175 the first line of the body"
 	From  string `json:"from"`            // "from alice · 22m ago"
-	Chain string `json:"chain,omitempty"` // "handed back #183 · 3m ago", "reply #12 · 1m ago"; "" when the assignment is the newest
+	Chain string `json:"chain,omitempty"` // "handed back #183 · 3m ago", "reply #12 · 1m ago", "accepted #190 · 1m ago"; "" when the assignment is the newest
 	Mail  *Mail  `json:"mail,omitempty"`
 }
 
@@ -99,6 +100,8 @@ func Describe(s core.State, sel string, stats map[string]Stats, now time.Time) D
 			}
 			d.Facts = append(d.Facts, Fact{Label: "gate", Value: OrDash(t.Gate)}, Fact{Label: "held", Value: fmt.Sprint(t.Held)},
 				Fact{Label: "unacked", Value: fmt.Sprint(t.Unacked)}, Fact{Label: "root", Value: Home(t.Root)})
+			d.Facts = append(d.Facts, mergeFacts(*t, now)...)
+			d.Facts = append(d.Facts, pinFacts(*t, now)...)
 			return d
 		case sel == TeamRow+t.ID: // a dead team's line: the team's facts
 			return Detail{Kind: DetailTeam, Title: t.Name, Sub: "open, all gone", Hint: "enter shows its members", Facts: []Fact{
@@ -184,6 +187,13 @@ func Describe(s core.State, sel string, stats map[string]Stats, now time.Time) D
 		if mem.LastTurnEnd > 0 {
 			d.Facts = append(d.Facts, Fact{Label: "last turn", Value: Ago(mem.LastTurnEnd, now) + " ago"})
 		}
+		if sk := mem.Skills; sk != nil { // told in its card, not enforced
+			v := "none (prompt only)"
+			if len(*sk) > 0 {
+				v = strings.Join(*sk, ", ") + " (prompt only)"
+			}
+			d.Facts = append(d.Facts, Fact{Label: "skills", Value: v})
+		}
 		d.Facts = append(d.Facts, Fact{Label: "root", Value: Home(team.Root)})
 	} else {
 		d.Facts = append(d.Facts, Fact{Label: "model", Value: ModelLabel(solo.Model, "")}, Fact{Label: "cwd", Value: Home(solo.Cwd)})
@@ -205,8 +215,51 @@ func taskOf(a *core.Assignment, now time.Time) *Task {
 		}
 		t.Chain = fmt.Sprintf("%s #%d · %s ago", what, l.Seq, Ago(l.At, now))
 	}
+	if c := a.Closed; c != nil {
+		what := "accepted"
+		if c.Op == core.OpDrop {
+			what = "dropped"
+		}
+		t.Chain = fmt.Sprintf("%s #%d · %s ago", what, c.Seq, Ago(c.At, now))
+	}
 	if x := a.Newer; x != nil {
 		t.Mail = &Mail{Head: fmt.Sprintf("#%d ", x.Seq), Title: x.Title, Tail: " · " + Ago(x.At, now) + " ago"}
 	}
 	return t
+}
+
+// mergeFacts are a team's merge records (agent action=merge): each branch's latest, open
+// conflicts first, as "branch → into: status, by, when".
+func mergeFacts(t core.TeamState, now time.Time) []Fact {
+	var out []Fact
+	for _, m := range t.Merges {
+		what := m.Branch
+		if m.Into != "" {
+			what += " → " + m.Into
+		}
+		v := fmt.Sprintf("%s: %s by %s, %s ago", what, m.Status, OrDash(m.By), Ago(m.At, now))
+		if m.Note != "" {
+			v += " (" + m.Note + ")"
+		}
+		label := "merge"
+		if m.Status == core.MergeConflict {
+			label = "conflict"
+		}
+		out = append(out, Fact{Label: label, Value: v})
+	}
+	return out
+}
+
+// pinFacts are a team's live board pins (a lane's plan is one), oldest first: "#N title, by who,
+// when", and how many lines when there are more than one.
+func pinFacts(t core.TeamState, now time.Time) []Fact {
+	var out []Fact
+	for _, p := range t.Pins {
+		v := fmt.Sprintf("#%d %s · %s, %s ago", p.Seq, OrDash(p.Title), p.By, Ago(p.At, now))
+		if p.Lines > 1 {
+			v += fmt.Sprintf(" · %d lines", p.Lines)
+		}
+		out = append(out, Fact{Label: "pin", Value: v})
+	}
+	return out
 }

@@ -3,33 +3,148 @@ package core
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
-// Watch rules (manifest `timers:`): the engine notices a participant working with no turn end
-// for longer than silent_for and tells the rule's target once per incident. Nothing is judged
-// by content.
+// Watch rules (manifest `timers:`): the engine notices a condition on a member from state alone
+// (its presence, and the kinds and order of its mail) and tells the rule's target once per
+// incident; when the incident outlasts that notice, it tells escalate_to once. Nothing is judged by
+// content.
+//
+// Conditions, one per rule:
+//   - silent_for D: working for longer than D with no turn end.
+//   - idle_with_task_for D: idle for longer than D while its task (its latest mail marked op assign)
+//     waits on it: the newest mail between it and the task's sender, since the task, is the sender's,
+//     and no mail marked op accept or drop has closed it.
+//   - unanswered_for D: a live teammate's mail to it has had no mail from it back to that teammate for
+//     longer than D (the oldest such mail is the incident); an accept or drop wants no answer.
+//   - max_rework N: more than N mails of kind rework to it since its task.
+//   - max_rework_across N: more than N mails of kind rework sent by it, over two or more tasks (a
+//     task: the receiver's latest mail marked op assign before the rework). Reworks spread over
+//     tasks may share one cause that no single task's count shows. Once per member.
+//
+// escalate_to fires escalate_after (default: the condition's D) after the notice while the same
+// incident holds; for max_rework and max_rework_across, at the next rework after the notice.
 
 // watchRule is one entry of the manifest's `timers:` list.
 type watchRule struct {
-	On        string `yaml:"on"`
-	Notify    string `yaml:"notify"` // a role or reports_to (notify loads and is ignored)
-	SilentFor string `yaml:"silent_for"`
+	On              string `yaml:"on"`
+	Notify          string `yaml:"notify"` // a role, reports_to or self (notify loads and is ignored)
+	SilentFor       string `yaml:"silent_for"`
+	IdleWithTaskFor string `yaml:"idle_with_task_for"`
+	UnansweredFor   string `yaml:"unanswered_for"`
+	MaxRework       int    `yaml:"max_rework"`
+	MaxReworkAcross int    `yaml:"max_rework_across"`
+	EscalateTo      string `yaml:"escalate_to"` // a role, reports_to, self or notify (the Human's notices)
+	EscalateAfter   string `yaml:"escalate_after"`
 }
 
-var watchKeys = map[string]bool{"on": true, "notify": true, "silent_for": true}
+// The conditions of a watch rule (its yaml keys) and the targets beyond a role.
+const (
+	condSilent     = "silent_for"
+	condIdleTask   = "idle_with_task_for"
+	condUnanswered = "unanswered_for"
+	condMaxRework  = "max_rework"
+	condReworkAcr  = "max_rework_across"
 
-// silence returns the rule's silent_for duration.
-func (r watchRule) silence() (time.Duration, error) {
-	if r.SilentFor == "" {
-		return 0, fmt.Errorf("needs silent_for")
+	targetReportsTo = "reports_to"
+	targetSelf      = "self"
+)
+
+var watchKeys = map[string]bool{"on": true, "notify": true, condSilent: true, condIdleTask: true, condUnanswered: true,
+	condMaxRework: true, condReworkAcr: true, "escalate_to": true, "escalate_after": true}
+
+// condition returns the rule's one condition and its duration (0 for a count).
+func (r watchRule) condition() (string, time.Duration, error) {
+	var set []string
+	for _, c := range []struct{ key, val string }{{condSilent, r.SilentFor}, {condIdleTask, r.IdleWithTaskFor},
+		{condUnanswered, r.UnansweredFor}} {
+		if c.val != "" {
+			set = append(set, c.key)
+		}
 	}
-	d, err := time.ParseDuration(r.SilentFor)
+	if r.MaxRework != 0 {
+		set = append(set, condMaxRework)
+	}
+	if r.MaxReworkAcross != 0 {
+		set = append(set, condReworkAcr)
+	}
+	switch {
+	case len(set) == 0:
+		return "", 0, fmt.Errorf("needs one of %s, %s, %s, %s or %s", condSilent, condIdleTask, condUnanswered,
+			condMaxRework, condReworkAcr)
+	case len(set) > 1:
+		return "", 0, fmt.Errorf("has %s: one condition per rule", strings.Join(set, " and "))
+	}
+	switch set[0] {
+	case condMaxRework:
+		if r.MaxRework < 0 {
+			return "", 0, fmt.Errorf("max_rework must be positive")
+		}
+		return condMaxRework, 0, nil
+	case condReworkAcr:
+		if r.MaxReworkAcross < 0 {
+			return "", 0, fmt.Errorf("max_rework_across must be positive")
+		}
+		return condReworkAcr, 0, nil
+	case condIdleTask:
+		d, err := positiveDuration(condIdleTask, r.IdleWithTaskFor)
+		return condIdleTask, d, err
+	case condUnanswered:
+		d, err := positiveDuration(condUnanswered, r.UnansweredFor)
+		return condUnanswered, d, err
+	}
+	d, err := positiveDuration(condSilent, r.SilentFor)
+	return condSilent, d, err
+}
+
+// describe is the rule's condition as written, e.g. "silent_for 20m".
+func (r watchRule) describe() string {
+	cond, _, _ := r.condition()
+	switch cond {
+	case condMaxRework:
+		return fmt.Sprintf("%s %d", cond, r.MaxRework)
+	case condReworkAcr:
+		return fmt.Sprintf("%s %d", cond, r.MaxReworkAcross)
+	case condIdleTask:
+		return cond + " " + r.IdleWithTaskFor
+	case condUnanswered:
+		return cond + " " + r.UnansweredFor
+	}
+	return cond + " " + r.SilentFor
+}
+
+// escalation returns how long after the notice an incident that still holds goes to escalate_to
+// (0 for a count: the next rework does). Without escalate_to it is 0.
+func (r watchRule) escalation() (time.Duration, error) {
+	cond, d, err := r.condition()
+	switch {
+	case err != nil:
+		return 0, err
+	case r.EscalateTo == "" && r.EscalateAfter != "":
+		return 0, fmt.Errorf("escalate_after needs escalate_to")
+	case r.EscalateTo == "":
+		return 0, nil
+	case counted(cond) && r.EscalateAfter != "":
+		return 0, fmt.Errorf("escalate_after does not apply to %s: it escalates at the next rework after the notice", cond)
+	case r.EscalateAfter == "":
+		return d, nil
+	}
+	return positiveDuration("escalate_after", r.EscalateAfter)
+}
+
+// counted reports whether cond is a count of reworks rather than a duration.
+func counted(cond string) bool { return cond == condMaxRework || cond == condReworkAcr }
+
+func positiveDuration(key, val string) (time.Duration, error) {
+	d, err := time.ParseDuration(val)
 	if err == nil && d <= 0 {
-		err = fmt.Errorf("silent_for must be positive")
+		err = fmt.Errorf("%s must be positive", key)
 	}
 	return d, err
 }
@@ -66,10 +181,14 @@ func validateTimers(text string, m manifest) error {
 		if _, ok := m.Roles[r.On]; !ok {
 			return errf(CodeInvalid, "manifest: timers[%d]: on: unknown role %q", i, r.On)
 		}
-		if _, ok := m.Roles[r.Notify]; !ok && r.Notify != "reports_to" && r.Notify != AddrNotify {
-			return errf(CodeInvalid, "manifest: timers[%d]: notify: %q is not a role, reports_to, or notify", i, r.Notify)
+		if _, ok := m.Roles[r.Notify]; !ok && r.Notify != targetReportsTo && r.Notify != targetSelf && r.Notify != AddrNotify {
+			return errf(CodeInvalid, "manifest: timers[%d]: notify: %q is not a role, reports_to, self, or notify", i, r.Notify)
 		}
-		if _, err := r.silence(); err != nil {
+		if _, ok := m.Roles[r.EscalateTo]; !ok && r.EscalateTo != "" && r.EscalateTo != targetReportsTo &&
+			r.EscalateTo != targetSelf && r.EscalateTo != AddrNotify {
+			return errf(CodeInvalid, "manifest: timers[%d]: escalate_to: %q is not a role, reports_to, self, or notify", i, r.EscalateTo)
+		}
+		if _, err := r.escalation(); err != nil {
 			return errf(CodeInvalid, "manifest: timers[%d]: %v", i, err)
 		}
 	}
@@ -77,7 +196,8 @@ func validateTimers(text string, m manifest) error {
 }
 
 // Watch evaluates every open team's watch rules (daemon tick) and sends one notice per new
-// incident. It returns the number of incidents fired.
+// incident, and one escalation per incident that outlasts its notice. It returns the number of
+// notices and escalations sent.
 func (e *Engine) Watch(ctx context.Context) (int, error) {
 	rows, err := e.db.QueryContext(ctx, `SELECT id, manifest FROM teams WHERE closed_at IS NULL`)
 	if err != nil {
@@ -101,18 +221,17 @@ func (e *Engine) Watch(ctx context.Context) (int, error) {
 			continue
 		}
 		for i, r := range rules {
-			d, err := r.silence()
-			if err != nil {
+			if _, err := r.escalation(); err != nil {
 				continue // TeamUp validated; skip anything unreadable
 			}
 			if r.Notify == AddrNotify {
 				continue // only the engine writes to notify (notifyWarnings)
 			}
-			var wake []string
+			var wake, hooks []string
 			err = e.inTx(ctx, func(t *txn) error {
-				n, w, err := t.watchRule(tm.id, i, r, d)
+				n, w, h, err := t.watchRule(tm.id, i, r)
 				fired += n
-				wake = w
+				wake, hooks = w, h
 				return err
 			})
 			if err != nil {
@@ -120,6 +239,9 @@ func (e *Engine) Watch(ctx context.Context) (int, error) {
 			}
 			for _, id := range wake {
 				e.notifyAfterCommit(id)
+			}
+			for _, id := range hooks {
+				e.notifyHookAfterCommit(id)
 			}
 		}
 	}
@@ -131,57 +253,155 @@ type incident struct {
 	subject participant
 	key     string
 	what    string // e.g. "has been working for 21m with no turn end"
+	count   int    // max_rework, max_rework_across: the reworks so far
 }
 
-// watchRule fires one rule of a team: every incident with an unseen key gets notices and a
-// watch_fired event. It returns the incidents fired and the participants to wake.
-func (t *txn) watchRule(teamID string, idx int, r watchRule, d time.Duration) (fired int, wake []string, err error) {
+// firedIncident is a watch_fired event: when the notice went out and the count it carried.
+type firedIncident struct {
+	ts    int64
+	count int
+}
+
+// watchRule runs one rule of a team: every incident with an unseen key gets notices and a
+// watch_fired event; one already noticed that is due goes to escalate_to once (watch_escalated). It
+// returns the notices and escalations sent, the participants to wake and the notify messages.
+func (t *txn) watchRule(teamID string, idx int, r watchRule) (fired int, wake, hooks []string, err error) {
+	cond, d, _ := r.condition()
+	after, _ := r.escalation()
 	subjects, err := t.teamRole(teamID, r.On)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, nil, err
 	}
-	ruleID := fmt.Sprintf("timers[%d] silent_for", idx)
-	var incidents []incident
+	ruleID := fmt.Sprintf("timers[%d] %s", idx, cond)
 	for _, p := range subjects {
-		in, ok, err := t.silentIncident(p, d)
+		n := r.MaxRework
+		if cond == condReworkAcr {
+			n = r.MaxReworkAcross
+		}
+		in, ok, err := t.watchIncident(cond, p, d, n)
 		if err != nil {
-			return 0, nil, err
+			return 0, nil, nil, err
 		}
-		if ok {
-			in.key = teamID + "/" + ruleID + "/" + in.key
-			incidents = append(incidents, in)
-		}
-	}
-	for _, in := range incidents {
-		var seen int
-		if err := t.QueryRowContext(t.ctx, `SELECT COUNT(*) FROM events WHERE type='watch_fired' AND
-			participant=? AND json_extract(payload,'$.key')=?`, in.subject.id, in.key).Scan(&seen); err != nil {
-			return 0, nil, internal(err)
-		}
-		if seen > 0 {
+		if !ok {
 			continue
 		}
-		targets, err := t.watchTargets(teamID, r.Notify, in.subject)
+		in.key = teamID + "/" + ruleID + "/" + in.key
+		prev, seen, err := t.firedIncident(p.id, "watch_fired", in.key)
 		if err != nil {
-			return 0, nil, err
+			return 0, nil, nil, err
 		}
-		for _, to := range targets {
-			who := label(to, in.subject)
-			body := fmt.Sprintf("%s %s (rule silent_for %s).", who, in.what, r.SilentFor)
-			msg := newID(t.now)
-			if _, err := t.insertMessage(msg, "", teamID, AddrEngine, to.id, "", "", "", "", body); err != nil {
-				return 0, nil, err
+		if !seen {
+			w, h, err := t.watchNotice(teamID, r.Notify, in, fmt.Sprintf("(rule %s)", r.describe()))
+			if err != nil {
+				return 0, nil, nil, err
 			}
-			wake = append(wake, to.id)
+			wake, hooks = append(wake, w...), append(hooks, h...)
+			if err := t.event(evt{typ: "watch_fired", participant: p.id, team: teamID, run: p.run,
+				payload: map[string]any{"rule": ruleID, "participant": p.id, "key": in.key,
+					"notified": len(w) + len(h), "count": in.count}}); err != nil {
+				return 0, nil, nil, err
+			}
+			fired++
+			continue
 		}
-		if err := t.event(evt{typ: "watch_fired", participant: in.subject.id, team: teamID, run: in.subject.run,
-			payload: map[string]any{"rule": ruleID, "participant": in.subject.id, "key": in.key,
-				"notified": len(targets)}}); err != nil {
-			return 0, nil, err
+		if r.EscalateTo == "" {
+			continue
+		}
+		if _, done, err := t.firedIncident(p.id, "watch_escalated", in.key); err != nil || done {
+			if err != nil {
+				return 0, nil, nil, err
+			}
+			continue
+		}
+		if counted(cond) && in.count <= prev.count || !counted(cond) && t.now-prev.ts < after.Milliseconds() {
+			continue
+		}
+		tail := fmt.Sprintf("(rule %s, escalated: told %s ago)", r.describe(), age(t.now-prev.ts))
+		w, h, err := t.watchNotice(teamID, r.EscalateTo, in, tail)
+		if err != nil {
+			return 0, nil, nil, err
+		}
+		wake, hooks = append(wake, w...), append(hooks, h...)
+		if err := t.event(evt{typ: "watch_escalated", participant: p.id, team: teamID, run: p.run,
+			payload: map[string]any{"rule": ruleID, "participant": p.id, "key": in.key, "to": r.EscalateTo,
+				"notified": len(w) + len(h)}}); err != nil {
+			return 0, nil, nil, err
 		}
 		fired++
 	}
-	return fired, wake, nil
+	return fired, wake, hooks, nil
+}
+
+// firedIncident is the event typ (watch_fired, watch_escalated) of incident key on p, if any.
+func (t *txn) firedIncident(p, typ, key string) (firedIncident, bool, error) {
+	var f firedIncident
+	err := t.QueryRowContext(t.ctx, `SELECT ts, COALESCE(json_extract(payload,'$.count'),0) FROM events
+		WHERE type=? AND participant=? AND json_extract(payload,'$.key')=? ORDER BY seq LIMIT 1`, typ, p, key).Scan(&f.ts, &f.count)
+	if errors.Is(err, sql.ErrNoRows) {
+		return f, false, nil
+	}
+	return f, err == nil, internal(err)
+}
+
+// watchNotice tells target (a role, reports_to, self, or notify: the Human) about in, the sentence
+// ending with tail. It returns the participants to wake and the notify messages written.
+func (t *txn) watchNotice(teamID, target string, in incident, tail string) (wake, hooks []string, err error) {
+	if target == AddrNotify {
+		gate, ok, err := t.teamGate(teamID)
+		if err != nil {
+			return nil, nil, err
+		}
+		body := fmt.Sprintf("%s (%s) %s %s.", in.subject.name, in.subject.role, in.what, tail)
+		msg := newID(t.now)
+		if _, err := t.insertMessage(msg, "", teamID, AddrEngine, AddrNotify, noticeWatch, "", "", "", body); err != nil {
+			return nil, nil, err
+		}
+		ev := evt{typ: "notice", team: teamID, ref: msg, payload: map[string]any{"kind": noticeWatch, "to": AddrNotify}}
+		if ok {
+			ev.participant, ev.run = gate.id, gate.run
+		}
+		return nil, []string{msg}, t.event(ev)
+	}
+	targets, err := t.watchTargets(teamID, target, in.subject)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, to := range targets {
+		who := label(to, in.subject)
+		if to.id == in.subject.id {
+			who = "You"
+		}
+		body := fmt.Sprintf("%s %s %s.", who, youVerb(in.what, to.id == in.subject.id), tail)
+		msg := newID(t.now)
+		if _, err := t.insertMessage(msg, "", teamID, AddrEngine, to.id, "", "", "", "", body); err != nil {
+			return nil, nil, err
+		}
+		wake = append(wake, to.id)
+	}
+	return wake, nil, nil
+}
+
+// youVerb turns an incident's "has been…"/"has not…" into "have…" for the subject itself.
+func youVerb(what string, self bool) string {
+	if rest, ok := strings.CutPrefix(what, "has "); ok && self {
+		return "have " + rest
+	}
+	return what
+}
+
+// watchIncident evaluates condition cond (duration d, or n for a count) on p.
+func (t *txn) watchIncident(cond string, p participant, d time.Duration, n int) (incident, bool, error) {
+	switch cond {
+	case condIdleTask:
+		return t.idleTaskIncident(p, d)
+	case condUnanswered:
+		return t.unansweredIncident(p, d)
+	case condMaxRework:
+		return t.reworkIncident(p, n)
+	case condReworkAcr:
+		return t.reworkAcrossIncident(p, n)
+	}
+	return t.silentIncident(p, d)
 }
 
 // silentIncident reports p working with no turn end for longer than d. The key (relative to
@@ -205,10 +425,186 @@ func (t *txn) silentIncident(p participant, d time.Duration) (incident, bool, er
 		what: fmt.Sprintf("has been working for %s with no turn end", age(t.now-since))}, true, nil
 }
 
-// watchTargets resolves a rule's notify target for subject p.
+// watchTask is p's task as the watch rules see it: its latest mail marked op assign.
+type watchTask struct {
+	id, from string
+	seq      int64
+	title    string
+}
+
+// currentTask returns p's latest delivered mail marked op assign (a spawn or resume task is one).
+func (t *txn) currentTask(p participant) (watchTask, bool, error) {
+	var w watchTask
+	var body string
+	err := t.QueryRowContext(t.ctx, `SELECT id, from_id, seq, body FROM messages WHERE op=? AND to_id=?
+		AND held_reason IS NULL ORDER BY seq DESC LIMIT 1`, OpAssign, p.id).Scan(&w.id, &w.from, &w.seq, &body)
+	if errors.Is(err, sql.ErrNoRows) {
+		return w, false, nil
+	}
+	if err != nil {
+		return w, false, internal(err)
+	}
+	w.title = assignmentTitle(body)
+	return w, true, nil
+}
+
+// idleTaskIncident reports p idle for longer than d while its task waits on it: after the task,
+// p has sent nothing to the task's sender since the sender last wrote (p has not handed back or
+// asked). The key is the idle stretch.
+func (t *txn) idleTaskIncident(p participant, d time.Duration) (incident, bool, error) {
+	if p.state != "idle" || t.now-p.stateSince <= d.Milliseconds() {
+		return incident{}, false, nil
+	}
+	task, ok, err := t.currentTask(p)
+	if err != nil || !ok {
+		return incident{}, false, err
+	}
+	if c, err := t.taskClosure(task.id); err != nil || c != nil {
+		return incident{}, false, err // accepted or dropped: nothing waits on it
+	}
+	// An admin's task (resume) has no sender to hand back to: p hands it back to its reports_to.
+	if task.from == "" {
+		if task.from = p.reportsTo; task.from == "" {
+			return incident{}, false, nil
+		}
+	}
+	var last string
+	err = t.QueryRowContext(t.ctx, `SELECT from_id FROM messages WHERE seq>? AND cc_of IS NULL
+		AND held_reason IS NULL AND ((from_id=? AND to_id=?) OR (from_id=? AND to_id=?)) ORDER BY seq DESC LIMIT 1`,
+		task.seq, task.from, p.id, p.id, task.from).Scan(&last)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return incident{}, false, internal(err)
+	}
+	if last == p.id {
+		return incident{}, false, nil
+	}
+	return incident{subject: p, key: fmt.Sprintf("%s/%d", p.id, p.stateSince),
+		what: fmt.Sprintf("has been idle for %s with task %s not handed back", age(t.now-p.stateSince),
+			taskRef(task))}, true, nil
+}
+
+// unansweredIncident reports the oldest mail to p from a live teammate that p has sent nothing
+// back to, for longer than d. The key is that mail.
+func (t *txn) unansweredIncident(p participant, d time.Duration) (incident, bool, error) {
+	if p.state == "gone" {
+		return incident{}, false, nil
+	}
+	var seq, at int64
+	var id, from, kind string
+	err := t.QueryRowContext(t.ctx, `SELECT m.id, m.seq, m.created_at, f.name, COALESCE(m.kind,'')
+		FROM messages m JOIN participants f ON f.id=m.from_id
+		WHERE m.to_id=? AND m.cc_of IS NULL AND m.held_reason IS NULL AND m.created_at<? AND COALESCE(m.op,'') NOT IN (?, ?)
+		AND f.team_id=? AND f.id<>? AND f.state<>'gone'
+		AND NOT EXISTS (SELECT 1 FROM messages r WHERE r.from_id=m.to_id AND r.to_id=m.from_id AND r.seq>m.seq
+			AND r.cc_of IS NULL)
+		ORDER BY m.seq LIMIT 1`, p.id, t.now-d.Milliseconds(), OpAccept, OpDrop, p.team, p.id).Scan(&id, &seq, &at, &from, &kind)
+	if errors.Is(err, sql.ErrNoRows) {
+		return incident{}, false, nil
+	}
+	if err != nil {
+		return incident{}, false, internal(err)
+	}
+	if kind != "" {
+		kind = " (" + kind + ")"
+	}
+	return incident{subject: p, key: p.id + "/" + id,
+		what: fmt.Sprintf("has not answered #%d%s from %s for %s", seq, kind, from, age(t.now-at))}, true, nil
+}
+
+// reworkIncident reports more than n mails of kind rework to p since its task (since it joined,
+// with none). The key is the task, so a new task starts the count again.
+func (t *txn) reworkIncident(p participant, n int) (incident, bool, error) {
+	if p.state == "gone" {
+		return incident{}, false, nil
+	}
+	task, ok, err := t.currentTask(p)
+	if err != nil {
+		return incident{}, false, err
+	}
+	var count int
+	if err := t.QueryRowContext(t.ctx, `SELECT COUNT(*) FROM messages WHERE to_id=? AND kind='rework'
+		AND cc_of IS NULL AND held_reason IS NULL AND seq>?`, p.id, task.seq).Scan(&count); err != nil {
+		return incident{}, false, internal(err)
+	}
+	if count <= n {
+		return incident{}, false, nil
+	}
+	key, on := p.id+"/-", ""
+	if ok {
+		key, on = p.id+"/"+task.id, " on task "+taskRef(task)
+	}
+	return incident{subject: p, key: key, count: count,
+		what: fmt.Sprintf("has been sent %d reworks%s", count, on)}, true, nil
+}
+
+// reworkAcrossIncident reports more than n mails of kind rework sent by p, over two or more tasks;
+// a rework's task is its receiver's latest mail marked op assign before it. The key is p: the
+// count only grows, so it is told once (and escalated at the next rework).
+func (t *txn) reworkAcrossIncident(p participant, n int) (incident, bool, error) {
+	if p.state == "gone" {
+		return incident{}, false, nil
+	}
+	rows, err := t.QueryContext(t.ctx, `SELECT w.name, COALESCE(a.id,''), COALESCE(a.seq,0), COALESCE(a.body,'')
+		FROM messages r JOIN participants w ON w.id=r.to_id
+		LEFT JOIN messages a ON a.id=(SELECT x.id FROM messages x WHERE x.op=? AND x.to_id=r.to_id
+			AND x.held_reason IS NULL AND x.seq<r.seq ORDER BY x.seq DESC LIMIT 1)
+		WHERE r.from_id=? AND r.kind='rework' AND r.cc_of IS NULL AND r.held_reason IS NULL ORDER BY r.seq`, OpAssign, p.id)
+	if err != nil {
+		return incident{}, false, internal(err)
+	}
+	defer rows.Close()
+	type spot struct {
+		ref   string
+		count int
+	}
+	var spots []*spot
+	byTask := map[string]*spot{}
+	total := 0
+	for rows.Next() {
+		var name, body string
+		var task watchTask
+		if err := rows.Scan(&name, &task.id, &task.seq, &body); err != nil {
+			return incident{}, false, internal(err)
+		}
+		key, ref := name+"/"+task.id, name
+		if task.id != "" {
+			task.title = assignmentTitle(body)
+			ref = name + " on " + taskRef(task)
+		}
+		if byTask[key] == nil {
+			byTask[key] = &spot{ref: ref}
+			spots = append(spots, byTask[key])
+		}
+		byTask[key].count++
+		total++
+	}
+	if err := rows.Err(); err != nil {
+		return incident{}, false, internal(err)
+	}
+	if total <= n || len(spots) < 2 {
+		return incident{}, false, nil
+	}
+	parts := make([]string, len(spots))
+	for i, s := range spots {
+		parts[i] = fmt.Sprintf("%s: %d", s.ref, s.count)
+	}
+	return incident{subject: p, key: p.id, count: total,
+		what: fmt.Sprintf("has sent %d reworks over %d tasks (%s)", total, len(spots), strings.Join(parts, "; "))}, true, nil
+}
+
+func taskRef(w watchTask) string {
+	if w.title == "" {
+		return fmt.Sprintf("#%d", w.seq)
+	}
+	return fmt.Sprintf("#%d %q", w.seq, w.title)
+}
+
+// watchTargets resolves a rule's notify or escalate_to target for subject p.
 func (t *txn) watchTargets(teamID, notify string, p participant) ([]participant, error) {
 	switch notify {
-	case "reports_to":
+	case targetSelf:
+		return []participant{p}, nil
+	case targetReportsTo:
 		if p.reportsTo == "" {
 			return nil, nil
 		}

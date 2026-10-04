@@ -3,6 +3,11 @@
 # cannot see each other.
 template: council
 summary: A chair asks independent members, each through one lens, about one hard decision and gives the verdict.
+when_to_use:             # selection criteria: the templates action lists them
+  - One hard decision with real trade-offs, where independent views through different lenses help.
+when_not_to_use:
+  - The goal is to produce changes (code, documents, operations); use supervisor-executor or slp.
+  - The answer can be checked directly, so opinions add nothing.
 auto_join_role: chair   # the founder's role when a session founds a team from this template
 roles:
   chair:
@@ -12,6 +17,7 @@ roles:
     can_spawn: [member]
     can_pin: false
     can_set_cwd: false
+    skills: inherit        # inherit: every skill of its harness; or a list: only these (told in its card)
     spawn:                 # how piggery starts this role's workers
       harness: inherit       # inherit: the main session's harness, else config.yaml harness
       model: inherit         # inherit: harness profile, else the main session's (same harness), else harness default
@@ -24,6 +30,7 @@ roles:
     can_spawn: []
     can_pin: false
     can_set_cwd: false
+    skills: inherit        # inherit: every skill of its harness; or a list: only these (told in its card)
     spawn:                 # how piggery starts this role's workers
       harness: inherit       # inherit: the main session's harness, else config.yaml harness
       model: inherit         # inherit: harness profile, else the main session's (same harness), else harness default
@@ -32,8 +39,9 @@ roles:
 routing:
   - {from: chair, to: member, allow: true, cc: []}
   - {from: member, to: chair, allow: true, cc: []}
-timers:
+timers:                  # one condition each; escalate_to: told again when the incident outlasts the notice
   - {on: member, notify: reports_to, silent_for: 20m}
+  - {on: member, notify: reports_to, idle_with_task_for: 10m}
 limits:                  # none: no limit
   depth: 2                 # how deep spawned_by chains may go
   concurrency: 10           # live workers at once

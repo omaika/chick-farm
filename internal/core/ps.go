@@ -42,6 +42,20 @@ type TeamState struct {
 	Unacked   int           `json:"unacked"`
 	Members   []MemberState `json:"members"`
 	CreatedAt int64         `json:"created_at"` // when it was brought up
+	// Merges are each branch's latest merge record (agent action=merge), open conflicts first.
+	Merges []MergeState `json:"merges,omitempty"`
+	// Pins are the team's live board pins, oldest first (a lane's plan is one).
+	Pins []PinState `json:"pins,omitempty"`
+}
+
+// PinState is a live board pin as top shows it: its #N, who pinned it, when, its first line and
+// how many lines it has.
+type PinState struct {
+	Seq   int64  `json:"seq"`
+	By    string `json:"by"`
+	At    int64  `json:"at"`
+	Title string `json:"title"`
+	Lines int    `json:"lines"`
 }
 
 // ClosedTeam is a closed team as it was left: its members with their final state.
@@ -85,6 +99,9 @@ type MemberState struct {
 	Transcript *Transcript `json:"transcript,omitempty"`
 	// Assignment is the latest mail marked op assign to it (a spawn or resume task is one); nil = none.
 	Assignment *Assignment `json:"assignment,omitempty"`
+	// Skills are its role's skills (roles.<r>.skills), told in its card, not enforced; nil =
+	// inherit (every skill of its harness), empty = none.
+	Skills *[]string `json:"skills,omitempty"`
 }
 
 // Assignment is a member's current task: a stored mail, not a field anyone reports.
@@ -100,6 +117,15 @@ type Assignment struct {
 	// the member a mail outside the chain (a task whose op assign was forgotten, or a note): the
 	// newest such mail.
 	Newer *NewerMail `json:"newer,omitempty"`
+	// Closed is the mail marked op accept or drop that closed it (send); nil = open.
+	Closed *TaskClosure `json:"closed,omitempty"`
+}
+
+// TaskClosure is the mail that closed a task: op accept or drop.
+type TaskClosure struct {
+	Op  string `json:"op"`
+	Seq int64  `json:"seq"`
+	At  int64  `json:"at"`
 }
 
 type ChainMail struct {
@@ -312,7 +338,17 @@ func (t *txn) teamMembers(ts *TeamState, pending map[string][2]int) error {
 	}
 	ts.Gate = gate.name
 	ts.Members = []MemberState{}
+	if ts.Merges, err = t.teamMerges(ts.ID); err != nil {
+		return err
+	}
+	if ts.Pins, err = t.teamPins(ts.ID); err != nil {
+		return err
+	}
 	assigned, err := t.assignments(ts.ID)
+	if err != nil {
+		return err
+	}
+	m, err := t.teamManifest(ts.ID)
 	if err != nil {
 		return err
 	}
@@ -344,7 +380,8 @@ func (t *txn) teamMembers(ts *TeamState, pending map[string][2]int) error {
 			Headless: mode == modeHeadless, Gate: q.id == gate.id, StateSince: q.stateSince,
 			LastTurnEnd: turn.Int64, Unacked: n[0], Model: model, Thinking: thinking, RunID: q.run, ReportsTo: q.reportsTo,
 			CreatedAt: created, SpawnedBy: spawnedBy, Harness: q.harness, LastActivity: q.lastActivity, Cwd: cwd,
-			ProtocolVersion: intOrNil(proto), Transcript: transcriptOrNil(tpath, tformat), Assignment: assigned[q.id]})
+			ProtocolVersion: intOrNil(proto), Transcript: transcriptOrNil(tpath, tformat), Assignment: assigned[q.id],
+			Skills: skillsOf(m.Roles[q.role].Skills)})
 		json.Unmarshal([]byte(caps), &ts.Members[len(ts.Members)-1].Capabilities)
 	}
 	if err := rows.Err(); err != nil {
@@ -382,6 +419,9 @@ func (t *txn) assignments(team string) (map[string]*Assignment, error) {
 	}
 	rows.Close()
 	for to, a := range out {
+		if a.Closed, err = t.taskClosure(ids[to]); err != nil {
+			return nil, err
+		}
 		var c ChainMail
 		var sender string
 		err := t.QueryRowContext(t.ctx, `WITH RECURSIVE chain(id) AS (

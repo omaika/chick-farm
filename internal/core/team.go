@@ -252,7 +252,8 @@ func (e *Engine) Log(ctx context.Context, a LogArgs) ([]Event, error) {
 	}
 	rows, err := e.db.QueryContext(ctx, `SELECT seq, ts, type, COALESCE(participant,''), COALESCE(team_id,''),
 		COALESCE(run_id,''), COALESCE(ref_id,''), payload FROM events
-		WHERE seq > ? AND (? = '' OR team_id = ?) ORDER BY seq LIMIT ?`, a.After, a.Team, a.Team, limit)
+		WHERE seq > ? AND (? = '' OR team_id IN (SELECT id FROM teams WHERE id = ? OR name = ?)) ORDER BY seq LIMIT ?`,
+		a.After, a.Team, a.Team, a.Team, limit)
 	if err != nil {
 		return nil, internal(err)
 	}

@@ -7,7 +7,8 @@ import (
 )
 
 // The reserved address `notify` is the engine's notification channel: only the engine writes to it
-// (agents cannot send there, and manifest lines naming it are ignored: notifyWarnings). A message to
+// (agents cannot send there, and manifest lines naming it are ignored: notifyWarnings; a watch
+// rule's escalate_to: notify is the engine's own escalation, watch.go). A message to
 // notify is stored already acked (limits, dedupe and hops still see it), never delivered, and a
 // post-commit sink (the server runs the hooks in ~/.piggery/hooks/notify.d) is told about it. There is no inbox,
 // ack, or reply path for it.
@@ -27,6 +28,7 @@ const (
 	noticeSettled  = "settled"   // the gate sent its last message and the team has nothing left to do
 	noticeFailed   = "failed"    // the gate's turn on team mail failed: the mail is stuck
 	noticeGateLost = "gate_lost" // the team has no live member (leave.go)
+	noticeWatch    = "watch"     // a watch rule escalated to notify (watch.go)
 )
 
 // NotifyMail is what the notify sink hook receives (one JSON line on stdin). Kind is one of the

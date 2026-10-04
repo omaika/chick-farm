@@ -15,6 +15,8 @@ import (
 var manifestKeys = []yamlfill.Key{
 	{Name: "template"},
 	{Name: "summary", Default: `""`},
+	{Name: "when_to_use", Default: "[]"},
+	{Name: "when_not_to_use", Default: "[]"},
 	{Name: "auto_join_role", Default: `""`},
 	{Name: "roles", Each: []yamlfill.Key{
 		{Name: "description", Default: `""`},
@@ -22,6 +24,7 @@ var manifestKeys = []yamlfill.Key{
 		{Name: "can_spawn", Default: "[]"},
 		{Name: "can_pin", Default: "false"},
 		{Name: "can_set_cwd", Default: "false"},
+		{Name: "skills", Default: inherit},
 		{Name: "spawn", Fields: []yamlfill.Key{
 			{Name: "harness", Default: inherit},
 			{Name: "model", Default: inherit},

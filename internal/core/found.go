@@ -16,7 +16,11 @@ func WithTemplates(f func(name, cwd string) (string, error)) Option {
 	return func(e *Engine) { e.templates = f }
 }
 
-// found is `agent action=found`: the caller founds a team from a.Template (default p2p), rooted at
+// DefaultTemplate is found's template when the caller names none: the loosest template (p2p) has no
+// review loop, so the default is the one where a supervisor judges every result.
+const DefaultTemplate = "supervisor-executor"
+
+// found is `agent action=found`: the caller founds a team from a.Template (default DefaultTemplate), rooted at
 // its cwd and named after the cwd's base name (-2, -3… while an open team has it), and becomes its
 // first member (the gate) as the template's auto_join_role or only role. A solo moves into the
 // team: same participant, run and token (Token is empty: keep yours, identify again with the same
@@ -24,7 +28,7 @@ func WithTemplates(f func(name, cwd string) (string, error)) Option {
 // run and token.
 func (e *Engine) found(ctx context.Context, c Caller, a AgentArgs) (AgentResult, error) {
 	if a.Template == "" {
-		a.Template = "p2p"
+		a.Template = DefaultTemplate
 	}
 	var cwd, prefix string
 	err := e.readOnly(ctx, func(t *txn) error {
@@ -159,20 +163,24 @@ func WithTemplateList(f func(cwd string) ([]TemplateRef, error)) Option {
 }
 
 type TemplateInfo struct {
-	Name    string     `json:"name"`
-	From    string     `json:"from"` // its directory
-	Summary string     `json:"summary,omitempty"`
-	Roles   []RoleInfo `json:"roles,omitempty"`
-	Error   string     `json:"error,omitempty"` // the template could not be read
+	Name         string     `json:"name"`
+	From         string     `json:"from"` // its directory
+	Summary      string     `json:"summary,omitempty"`
+	WhenToUse    []string   `json:"when_to_use,omitempty"`
+	WhenNotToUse []string   `json:"when_not_to_use,omitempty"`
+	Default      bool       `json:"default,omitempty"` // found uses it when no template is named
+	Roles        []RoleInfo `json:"roles,omitempty"`
+	Error        string     `json:"error,omitempty"` // the template could not be read
 }
 
 type RoleInfo struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
+	Name        string    `json:"name"`
+	Description string    `json:"description,omitempty"`
+	Skills      *[]string `json:"skills,omitempty"` // nil = inherit
 }
 
 // listTemplates is the templates action: what found could use from the caller's cwd, with each
-// template's summary and roles. Read-only.
+// template's summary, its selection criteria (when_to_use, when_not_to_use) and roles. Read-only.
 func (e *Engine) listTemplates(ctx context.Context, c Caller) (AgentResult, error) {
 	var cwd, prefix string
 	err := e.readOnly(ctx, func(t *txn) error {
@@ -205,21 +213,35 @@ func (e *Engine) listTemplates(ctx context.Context, c Caller) (AgentResult, erro
 			res.Templates = append(res.Templates, info)
 			continue
 		}
-		info.Summary = m.Summary
-		fmt.Fprintf(&b, "- %s (%s): %s\n", r.Name, r.From, orNone(m.Summary))
+		info.Summary, info.WhenToUse, info.WhenNotToUse = m.Summary, m.WhenToUse, m.WhenNotToUse
+		info.Default = r.Name == DefaultTemplate
+		dflt := ""
+		if info.Default {
+			dflt = ", the default"
+		}
+		fmt.Fprintf(&b, "- %s (%s%s): %s\n", r.Name, r.From, dflt, orNone(m.Summary))
+		for _, c := range []struct {
+			head  string
+			lines []string
+		}{{"use when", m.WhenToUse}, {"not when", m.WhenNotToUse}} {
+			for _, l := range c.lines {
+				fmt.Fprintf(&b, "    %s: %s\n", c.head, strings.TrimSpace(l))
+			}
+		}
 		roles := make([]string, 0, len(m.Roles))
 		for name := range m.Roles {
 			roles = append(roles, name)
 		}
 		sort.Strings(roles)
 		for _, name := range roles {
-			d := m.Roles[name].Description
-			info.Roles = append(info.Roles, RoleInfo{Name: name, Description: d})
-			fmt.Fprintf(&b, "    %s: %s\n", name, orNone(d))
+			d, skills := m.Roles[name].Description, m.Roles[name].Skills
+			info.Roles = append(info.Roles, RoleInfo{Name: name, Description: d, Skills: skillsOf(skills)})
+			fmt.Fprintf(&b, "    %s: %s%s\n", name, orNone(d), skillsNote(skills))
 		}
 		res.Templates = append(res.Templates, info)
 	}
-	fmt.Fprintf(&b, "Start a team from one with %sagent action=found template=<name>.", prefix)
+	fmt.Fprintf(&b, "Pick the template whose use when lines fit the goal and whose not when lines do not; "+
+		"start a team from it with %sagent action=found template=<name> (no template: %s).", prefix, DefaultTemplate)
 	res.Text = b.String()
 	return res, nil
 }

@@ -165,7 +165,12 @@ func Run(ctx context.Context, cfg Config) error {
 		if err := s.eng.UnbatchedTurn(context.Background(), participantID, runID, event); err != nil {
 			s.log.Warn("turn", "participant", participantID, "run", runID, "event", event, "err", err)
 		}
-	}}
+	}, Refused: settings.RefusedCommands}
+	// The refused commands first on every worker's PATH; a failure leaves workers without them.
+	if err := local.WriteRefused(cfg.Dir, settings.RefusedCommands); err != nil {
+		log.Warn("refused commands", "err", err)
+		opts.Refused = nil
+	}
 	// Every built-in runtime driver; a worker runs on the one its harness names.
 	drivers := local.Builtin(cfg.Dir, opts)
 	// The built-in templates into ~/.piggery/templates, never over the user's edits.
@@ -436,7 +441,7 @@ func (s *server) handle(ctx context.Context, cn *conn, req proto.Request) proto.
 		// of an open team. The socket's 0600 mode is the boundary.
 		return call(req, func(a core.JoinAutoArgs) (any, error) { return s.eng.JoinAuto(ctx, a) })
 	case proto.VerbTeamUp, proto.VerbJoin, proto.VerbLog, proto.VerbRelease,
-		proto.VerbWhy, proto.VerbDoctor, proto.VerbLabels, proto.VerbTeamDown, proto.VerbGC, proto.VerbPs, proto.VerbTail, proto.VerbShutdown, proto.VerbAbort, proto.VerbKill, proto.VerbResume, proto.VerbModel, proto.VerbModels:
+		proto.VerbWhy, proto.VerbDoctor, proto.VerbLabels, proto.VerbTeamDown, proto.VerbTeamMigrate, proto.VerbGC, proto.VerbPs, proto.VerbTail, proto.VerbShutdown, proto.VerbAbort, proto.VerbKill, proto.VerbResume, proto.VerbModel, proto.VerbModels, proto.VerbMail, proto.VerbTasks:
 		if !s.isAdmin(req.AdminToken) {
 			return errResponse(req.ID, s.unauthorized(req.Verb, "admin token required"))
 		}
@@ -448,6 +453,14 @@ func (s *server) handle(ctx context.Context, cn *conn, req proto.Request) proto.
 					s.log.Warn("team up", "team", team.Name, "warning", w)
 				}
 				return team, err
+			})
+		case proto.VerbTeamMigrate:
+			return call(req, func(a core.TeamMigrateArgs) (any, error) {
+				r, err := s.eng.TeamMigrate(ctx, a)
+				for _, w := range r.Warnings {
+					s.log.Warn("team migrate", "team", r.Name, "warning", w)
+				}
+				return r, err
 			})
 		case proto.VerbPs:
 			return call(req, func(a core.StateArgs) (any, error) {
@@ -491,6 +504,10 @@ func (s *server) handle(ctx context.Context, cn *conn, req proto.Request) proto.
 			return call(req, func(struct{}) (any, error) { return s.eng.Doctor(ctx) })
 		case proto.VerbLabels:
 			return call(req, func(a core.LabelsArgs) (any, error) { return s.eng.Labels(ctx, a) })
+		case proto.VerbMail:
+			return call(req, func(a core.MailArgs) (any, error) { return s.eng.Mail(ctx, a) })
+		case proto.VerbTasks:
+			return call(req, func(a core.TasksArgs) (any, error) { return s.eng.Tasks(ctx, a) })
 		case proto.VerbTeamDown:
 			return call(req, func(a core.TeamDownArgs) (any, error) {
 				r, err := s.eng.TeamDown(ctx, a)

@@ -37,6 +37,9 @@ func validateRoles(m manifest) error {
 				return errf(CodeInvalid, "manifest: roles.%s.instructions: %s names no tool (send, inbox, who or agent)", name, ph[0])
 			}
 		}
+		if err := validateSkills(name, r.Skills); err != nil {
+			return err
+		}
 		for _, tool := range r.Tools {
 			if !builtinTools[tool] {
 				return errf(CodeInvalid, "manifest: roles.%s.tools: unknown tool %q (send, inbox, who or agent)", name, tool)
