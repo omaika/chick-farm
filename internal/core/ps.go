@@ -44,6 +44,18 @@ type TeamState struct {
 	CreatedAt int64         `json:"created_at"` // when it was brought up
 	// Merges are each branch's latest merge record (agent action=merge), open conflicts first.
 	Merges []MergeState `json:"merges,omitempty"`
+	// Pins are the team's live board pins, oldest first (a lane's plan is one).
+	Pins []PinState `json:"pins,omitempty"`
+}
+
+// PinState is a live board pin as top shows it: its #N, who pinned it, when, its first line and
+// how many lines it has.
+type PinState struct {
+	Seq   int64  `json:"seq"`
+	By    string `json:"by"`
+	At    int64  `json:"at"`
+	Title string `json:"title"`
+	Lines int    `json:"lines"`
 }
 
 // ClosedTeam is a closed team as it was left: its members with their final state.
@@ -318,6 +330,9 @@ func (t *txn) teamMembers(ts *TeamState, pending map[string][2]int) error {
 	ts.Gate = gate.name
 	ts.Members = []MemberState{}
 	if ts.Merges, err = t.teamMerges(ts.ID); err != nil {
+		return err
+	}
+	if ts.Pins, err = t.teamPins(ts.ID); err != nil {
 		return err
 	}
 	assigned, err := t.assignments(ts.ID)

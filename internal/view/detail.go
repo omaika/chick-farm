@@ -101,6 +101,7 @@ func Describe(s core.State, sel string, stats map[string]Stats, now time.Time) D
 			d.Facts = append(d.Facts, Fact{Label: "gate", Value: OrDash(t.Gate)}, Fact{Label: "held", Value: fmt.Sprint(t.Held)},
 				Fact{Label: "unacked", Value: fmt.Sprint(t.Unacked)}, Fact{Label: "root", Value: Home(t.Root)})
 			d.Facts = append(d.Facts, mergeFacts(*t, now)...)
+			d.Facts = append(d.Facts, pinFacts(*t, now)...)
 			return d
 		case sel == TeamRow+t.ID: // a dead team's line: the team's facts
 			return Detail{Kind: DetailTeam, Title: t.Name, Sub: "open, all gone", Hint: "enter shows its members", Facts: []Fact{
@@ -238,6 +239,20 @@ func mergeFacts(t core.TeamState, now time.Time) []Fact {
 			label = "conflict"
 		}
 		out = append(out, Fact{Label: label, Value: v})
+	}
+	return out
+}
+
+// pinFacts are a team's live board pins (a lane's plan is one), oldest first: "#N title, by who,
+// when", and how many lines when there are more than one.
+func pinFacts(t core.TeamState, now time.Time) []Fact {
+	var out []Fact
+	for _, p := range t.Pins {
+		v := fmt.Sprintf("#%d %s · %s, %s ago", p.Seq, OrDash(p.Title), p.By, Ago(p.At, now))
+		if p.Lines > 1 {
+			v += fmt.Sprintf(" · %d lines", p.Lines)
+		}
+		out = append(out, Fact{Label: "pin", Value: v})
 	}
 	return out
 }

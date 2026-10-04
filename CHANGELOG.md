@@ -21,6 +21,8 @@ After upgrading, run `piggery setup --outdated`: the pi and omp integrations are
   or `aborted`, with the branch, what it went into and a note. Each is an event; `ps`/`top` show a
   team's merges in its Overview, and a team with an open conflict is flagged until it is recorded
   resolved or aborted. The `slp` prompts ask the Lead and the Supervisor to record theirs.
+- `top` and `web` list a team's live board pins in its Overview (`#N`, first line, who pinned it,
+  when, and how many lines), so the Human sees a lane's plan; `ps --json` has them as `pins`.
 - `piggery mail`: a team's or a participant's messages, newest first, with kind and state; it acks
   nothing. `log --team` takes a team's name too.
 - Eleven skills for templates' roles, in `manifests/skills/`, adapted from seatworks: `test-first`,

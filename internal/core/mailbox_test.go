@@ -67,3 +67,21 @@ func TestLogByTeamName(t *testing.T) {
 		t.Fatalf("log by id %d (%v), by name %d (%v)", len(byID), err1, len(byName), err2)
 	}
 }
+
+// A team's state carries its live pins, oldest first: a replaced pin shows as its new version, a
+// removed one not at all.
+func TestStatePins(t *testing.T) {
+	f := newFixture(t, nil)
+	plan := f.send(t, f.alice, core.SendArgs{To: "board", Body: "## Plan: **parser** lane\nT1 tokens\nT2 grammar"}).ID
+	note := f.send(t, f.bob, core.SendArgs{To: "board", Body: "freeze at 5pm"}).ID
+	f.send(t, f.alice, core.SendArgs{To: "board", Op: "replace", Target: plan, Body: "Plan v2\nT1 done\nT2 grammar\nT3 errors"})
+	f.send(t, f.bob, core.SendArgs{To: "board", Op: "remove", Target: note})
+	s, err := f.e.State(ctx, core.StateArgs{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pins := s.Teams[0].Pins
+	if len(pins) != 1 || pins[0].Title != "Plan v2" || pins[0].By != "alice" || pins[0].Lines != 4 {
+		t.Fatalf("pins = %+v; want the replaced plan only", pins)
+	}
+}

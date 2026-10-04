@@ -44,3 +44,20 @@ func TestMergesShown(t *testing.T) {
 		t.Fatalf("event rows = %+v", r)
 	}
 }
+
+// A team's Overview lists its live pins: #N, first line, who, when, and how many lines.
+func TestPinsShown(t *testing.T) {
+	now := time.UnixMilli(1_000_000_000_000)
+	team := core.TeamState{ID: "t", Name: "demo", Root: "/p", CreatedAt: now.UnixMilli(),
+		Members: []core.MemberState{{ID: "m", Name: "lead", State: "idle", StateSince: now.UnixMilli()}},
+		Pins:    []core.PinState{{Seq: 7, By: "lead", At: now.UnixMilli(), Title: "Plan v2", Lines: 4}}}
+	var got []string
+	for _, f := range Describe(core.State{Teams: []core.TeamState{team}}, TeamRow+"t", nil, now).Facts {
+		if f.Label == "pin" {
+			got = append(got, f.Value)
+		}
+	}
+	if len(got) != 1 || got[0] != "#7 Plan v2 · lead, 0s ago · 4 lines" {
+		t.Fatalf("pin facts = %q", got)
+	}
+}

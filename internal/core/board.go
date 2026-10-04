@@ -1,6 +1,9 @@
 package core
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // Board returns the live pins of the caller's team, oldest first.
 func (e *Engine) Board(ctx context.Context, c Caller) ([]Message, error) {
@@ -62,4 +65,25 @@ func (t *txn) livePins(p participant) ([]Message, error) {
 		pins = []Message{}
 	}
 	return pins, err
+}
+
+// teamPins are the team's live pins as top shows them, oldest first.
+func (t *txn) teamPins(team string) ([]PinState, error) {
+	rows, err := t.QueryContext(t.ctx, `SELECT m.seq, COALESCE(p.name, 'admin'), m.created_at, m.body FROM pins x
+		JOIN messages m ON m.id=x.id LEFT JOIN participants p ON p.id=m.from_id WHERE x.team_id=? ORDER BY m.seq`, team)
+	if err != nil {
+		return nil, internal(err)
+	}
+	defer rows.Close()
+	var out []PinState
+	for rows.Next() {
+		var ps PinState
+		var body string
+		if err := rows.Scan(&ps.Seq, &ps.By, &ps.At, &body); err != nil {
+			return nil, internal(err)
+		}
+		ps.Title, ps.Lines = assignmentTitle(body), strings.Count(strings.TrimSpace(body), "\n")+1
+		out = append(out, ps)
+	}
+	return out, internal(rows.Err())
 }
