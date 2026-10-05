@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- `web` has Settings (`s`, or ⚙ in the header): the model and thinking workers start with, per
+  harness profile (`~/.piggery/harness/<h>.json`) and per template role (`spawn.harness`,
+  `spawn.model`, `spawn.thinking` in `~/.piggery/templates/<t>/manifest.yaml`). A save writes that
+  value in place and keeps the rest of the file (comments, order, layout); a role's change is
+  checked as `team up` loads the template, and its warnings (a model pinned with harness
+  `inherit`) are shown. Nothing restarts: teams founded from then on use it, a team already up
+  keeps its own.
+
 ## v0.8.1 - 2026-10-05
 
 After upgrading, run `piggery setup --outdated`: the pi and omp integrations are now 5 and dsh 6

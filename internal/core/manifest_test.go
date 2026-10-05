@@ -170,3 +170,47 @@ func TestFillManifestFile(t *testing.T) {
 		t.Fatalf("a refused template changed:\n%s", b)
 	}
 }
+
+// SetRoleSpawn writes one role's spawn keys in place, on a built-in as it ships (comments kept) and
+// on a role with no spawn at all (added first); "" is inherit; an unknown role or key is refused.
+func TestSetRoleSpawn(t *testing.T) {
+	src, err := os.ReadFile("../../manifests/slp.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := SetRoleSpawn(src, "peer", map[string]string{"harness": "claude", "model": "claude-sonnet-5-5", "thinking": ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := parseManifest(string(out))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sp := m.Roles["peer"].Spawn; sp.Harness != "claude" || sp.Model != "claude-sonnet-5-5" || sp.Thinking != "" {
+		t.Fatalf("peer spawn: %+v", sp)
+	}
+	if sp := m.Roles["lead"].Spawn; sp.Harness != "" || sp.Model != "" {
+		t.Fatalf("lead changed: %+v", sp)
+	}
+	if !strings.Contains(string(out), "      model: claude-sonnet-5-5         # inherit: harness profile") {
+		t.Fatalf("the comment after model is gone:\n%s", out)
+	}
+	if a, b := strings.Count(string(src), "\n"), strings.Count(string(out), "\n"); a != b {
+		t.Fatalf("lines %d -> %d", a, b)
+	}
+
+	bare := "template: t\nroles:\n  w:\n    tools: [send] # mine\n"
+	out, err = SetRoleSpawn([]byte(bare), "w", map[string]string{"model": "opus"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m, _ := parseManifest(string(out)); m.Roles["w"].Spawn.Model != "opus" || !strings.Contains(string(out), "tools: [send] # mine") {
+		t.Fatalf("bare role:\n%s", out)
+	}
+	if _, err := SetRoleSpawn([]byte(bare), "nobody", map[string]string{"model": "opus"}); err == nil {
+		t.Fatal("unknown role: no error")
+	}
+	if _, err := SetRoleSpawn([]byte(bare), "w", map[string]string{"allow_tools": "x"}); err == nil {
+		t.Fatal("unknown key: no error")
+	}
+}
