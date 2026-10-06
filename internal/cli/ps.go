@@ -84,7 +84,7 @@ func psLines(r proto.PsResult, now time.Time, stats map[string]view.Stats, cols 
 	// fields writes a row's columns in cols order, each as ps writes it; val has the row's.
 	fields := func(val map[string]string) string {
 		format := map[string]string{"role": "%-10s", "state": "%-19s", "harness": "%-13s", "model": "%-22s",
-			"ctx": "ctx %-6s", "turns": "turns %-4s", "unacked": "unacked=%-3s", "age": "age %-8s", "since": "for %-8s",
+			"thinking": "%-8s", "ctx": "ctx %-6s", "turns": "turns %-4s", "unacked": "unacked=%-3s", "age": "age %-8s", "since": "for %-8s",
 			"cwd": "%-16s"}
 		var b strings.Builder
 		for _, c := range shownCols {
@@ -101,7 +101,7 @@ func psLines(r proto.PsResult, now time.Time, stats map[string]view.Stats, cols 
 	}
 	// vals is a row's columns as ps words them (ages as since writes them, from the row's own times).
 	vals := func(row view.Row) map[string]string {
-		return map[string]string{"state": row.State, "harness": row.Harness, "model": row.Model, "unacked": fmt.Sprint(row.Unacked),
+		return map[string]string{"state": row.State, "harness": row.Harness, "model": row.Model, "thinking": row.Thinking, "unacked": fmt.Sprint(row.Unacked),
 			"age": since(row.CreatedAt, now), "since": since(row.SinceAt, now), "cwd": row.Cwd, "ctx": row.Ctx, "turns": row.Turns}
 	}
 	teams, members, solos := map[string]core.TeamState{}, map[string]core.MemberState{}, map[string]core.SoloState{}

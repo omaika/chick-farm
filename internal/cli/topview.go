@@ -111,7 +111,7 @@ var topColumns = slices.DeleteFunc(slices.Clone(server.DisplayColumns), func(c s
 // When the list is narrow: CWD and MODEL shrink, then ROLE, MODEL, TURNS and AGE go, then NAME
 // shrinks.
 var (
-	listFit = []namedFit{{"cwd", 8}, {"model", 8}, {"role", 0}, {"model", 0}, {"turns", 0}, {"age", 0}, {"name", 8}}
+	listFit = []namedFit{{"cwd", 8}, {"model", 8}, {"role", 0}, {"thinking", 0}, {"model", 0}, {"turns", 0}, {"age", 0}, {"name", 8}}
 
 	noticeCols = []string{"AGE", "WHERE", "KIND", "BODY"}
 	noticeFit  = []fitStep{{3, 20}, {1, 8}, {2, 4}}
@@ -559,7 +559,7 @@ func rowOf(r view.Row, cols []string) trow {
 	}
 	val["state"], val["since"] = r.StateText, r.Since
 	if !blank {
-		val["harness"], val["model"], val["ctx"], val["turns"] = r.Harness, r.Model, r.Ctx, r.Turns
+		val["harness"], val["model"], val["thinking"], val["ctx"], val["turns"] = r.Harness, r.Model, r.Thinking, r.Ctx, r.Turns
 		val["unacked"], val["age"], val["cwd"] = fmt.Sprint(r.Unacked), r.Age, cmp.Or(r.Cwd, " ")
 	}
 	cells := make([]string, len(cols))

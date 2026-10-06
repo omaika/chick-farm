@@ -45,7 +45,7 @@ type Settings struct {
 
 // DisplayColumns are the columns top and ps can show after the name, in their default order. A
 // column that does not apply to a row (role and ctx for a solo, cwd for a member) is skipped.
-var DisplayColumns = []string{"role", "state", "harness", "model", "ctx", "turns", "unacked", "age", "since", "cwd"}
+var DisplayColumns = []string{"role", "state", "harness", "model", "thinking", "ctx", "turns", "unacked", "age", "since", "cwd"}
 
 // gcEvery is how often the daemon runs gc (and once at start, after reconcile).
 const gcEvery = 24 * time.Hour

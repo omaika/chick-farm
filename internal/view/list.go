@@ -192,6 +192,7 @@ type Row struct {
 	Folded      bool     `json:"folded,omitempty"` // a member of a live team that is all gone below: listed only when the team's gone line is open
 	Harness     string   `json:"harness,omitempty"`
 	Model       string   `json:"model,omitempty"`
+	Thinking    string   `json:"thinking,omitempty"` // a member's thinking level as its session reports it, else as stored; "" unknown
 	Ctx         string   `json:"ctx,omitempty"`
 	Turns       string   `json:"turns,omitempty"`
 	Unacked     int      `json:"unacked"`
@@ -290,7 +291,7 @@ func BuildList(in ListInput) List {
 		at := SinceMs(mem.State, mem.StateSince, mem.LastTurnEnd)
 		return Row{Kind: KindMember, ID: mem.ID, Team: t.ID, Depth: tr.Depth, Name: mem.Name, Prefix: tr.Prefix, Role: mem.Role, Gate: mem.Gate,
 			State: mem.State, StateText: StateText(mem.State), Status: StatusOf(mem.State), Dim: closed || mem.State == "gone" || tr.ParentGone,
-			Harness: HarnessLabel(mem.Harness, mem.Headless), Model: ModelID(mem.Model), Ctx: ctx, Turns: turns, Unacked: mem.Unacked,
+			Harness: HarnessLabel(mem.Harness, mem.Headless), Model: ModelID(mem.Model), Thinking: mem.Thinking, Ctx: ctx, Turns: turns, Unacked: mem.Unacked,
 			Age: Ago(mem.CreatedAt, now), Since: Ago(at, now), SinceAt: at, Cwd: RelCwd(g.Dir, mem.Cwd),
 			CreatedAt: mem.CreatedAt, StateSince: mem.StateSince, LastTurnEnd: mem.LastTurnEnd,
 			Actions: &Actions{Pick: Pickable(mem, t.ID, s.Closed), Kill: KillNote(mem.Name, mem.Headless, mem.State) == "", Tail: MemberTailable(mem, in.Readable)}}

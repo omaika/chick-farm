@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- A `thinking` column after `model` in `top`, `ps` and `web`: a member's thinking level as its
+  session reports it, else as it was spawned or last set (`-` when unknown, e.g. inherit). A
+  `display.columns` you wrote lists it only once you add it.
 - `web` has Settings (`s`, or ⚙ in the header): the model and thinking workers start with, per
   harness profile (`~/.piggery/harness/<h>.json`) and per template role (`spawn.harness`,
   `spawn.model`, `spawn.thinking` in `~/.piggery/templates/<t>/manifest.yaml`), and each template's
