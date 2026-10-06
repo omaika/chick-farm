@@ -70,3 +70,23 @@ roles:
 		t.Fatal("two lines: no error")
 	}
 }
+
+// SetPlain writes a number or a keyword as it is, not quoted, and refuses anything else.
+func TestSetPlain(t *testing.T) {
+	src := "limits:                  # none: no limit\n  depth: 2   # how deep\n  concurrency: none\n"
+	out, err := SetPlain([]byte(src), []string{"limits", "concurrency"}, "20")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out, err = SetPlain(out, []string{"limits", "depth"}, "none"); err != nil {
+		t.Fatal(err)
+	}
+	if want := "limits:                  # none: no limit\n  depth: none   # how deep\n  concurrency: 20\n"; string(out) != want {
+		t.Fatalf("got\n%s", out)
+	}
+	for _, bad := range []string{"", "1 2", "a: b", `"x"`, "[1]"} {
+		if _, err := SetPlain([]byte(src), []string{"limits", "depth"}, bad); err == nil {
+			t.Fatalf("%q: no error", bad)
+		}
+	}
+}

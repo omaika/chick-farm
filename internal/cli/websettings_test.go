@@ -74,6 +74,9 @@ func TestWebSettings(t *testing.T) {
 	if slp == nil || len(slp.Roles) != 3 || slp.Roles[0].Name != "supervisor" || slp.Roles[2].Name != "peer" || slp.Roles[2].Model != "inherit" {
 		t.Fatalf("slp: %+v", slp)
 	}
+	if len(slp.Limits) != 4 || slp.Limits[1] != (settingsLimit{"concurrency", "10"}) || slp.Limits[3] != (settingsLimit{"max_respawn_per_hour", "none"}) {
+		t.Fatalf("slp limits: %+v", slp.Limits)
+	}
 
 	if code, out := call("POST", "/api/settings/profile", profileSetting{Harness: "claude", Model: "sonnet", Thinking: "high"}); code != http.StatusOK {
 		t.Fatalf("set profile: %d %v", code, out)
@@ -100,6 +103,21 @@ func TestWebSettings(t *testing.T) {
 		t.Fatalf("model with harness inherit: %d %v", code, out)
 	}
 
+	if code, out := call("POST", "/api/settings/limits", limitsSetting{Template: "slp", Limits: map[string]string{"concurrency": "20", "max_respawn_per_hour": "6"}}); code != http.StatusOK {
+		t.Fatalf("set limits: %d %v", code, out)
+	}
+	if b, _ := os.ReadFile(path); !strings.Contains(string(b), "  concurrency: 20           # live workers at once") || !strings.Contains(string(b), "max_respawn_per_hour: 6") {
+		t.Fatalf("slp limits after:\n%s", b)
+	}
+	// slp's roles spawn, so team up refuses concurrency none: refused here, before the write
+	for _, bad := range []map[string]string{{"concurrency": "none"}, {"concurrency": "0"}, {"depth": "x"}, {"hops": "1"}, {}} {
+		if code, out := call("POST", "/api/settings/limits", limitsSetting{Template: "slp", Limits: bad}); code != http.StatusBadRequest {
+			t.Fatalf("limits %v: %d %v", bad, code, out)
+		}
+	}
+	if b, _ := os.ReadFile(path); !strings.Contains(string(b), "concurrency: 20") {
+		t.Fatal("a refused limits call changed the template")
+	}
 	for _, bad := range []any{
 		roleSetting{Template: "../slp", Role: "peer"},
 		roleSetting{Template: "slp", Role: "nobody"},

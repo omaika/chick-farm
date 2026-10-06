@@ -74,7 +74,7 @@ Using [Paseo](https://paseo.sh)? `piggery setup paseo` adds a Piggery view (the 
 Rather a browser? `piggery web --open` serves `piggery top` at http://127.0.0.1:4125: the same
 rows, Overview and Tail, kill and the model picker, and a Mail tab with each participant's or team's
 messages (reading them acks nothing), and Settings for the model and thinking each harness and each
-template role starts workers with. It listens on loopback only (`--addr 127.0.0.1:PORT` for
+template role starts workers with, and each template's limits (workers at once, spawn depth). It listens on loopback only (`--addr 127.0.0.1:PORT` for
 another port), and the page carries a token made at each start.
 
 Or build it: `go install github.com/sting8k/piggery/cmd/piggery@latest` (Go 1.26+).

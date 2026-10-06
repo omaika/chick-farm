@@ -122,7 +122,12 @@
   .sgrid input.dirty, .sgrid select.dirty { border-color: var(--accent); }
   .sgrid .name { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sgrid .note { grid-column: 1 / -1; font-size: 12px; margin: -2px 0 4px; }
-  .sgrid button:disabled { opacity: .4; cursor: default; background: none; }
+  .sgrid button:disabled, .lgrid button:disabled { opacity: .4; cursor: default; background: none; }
+  .lgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) 64px; gap: 2px 8px; align-items: end; margin: 2px 0 10px; }
+  .lgrid label { color: var(--muted); font-size: 11px; display: flex; flex-direction: column; gap: 2px; }
+  .lgrid input { width: 100%; font: inherit; font-family: var(--mono); font-size: 12px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .lgrid input.dirty { border-color: var(--accent); }
+  .lgrid .note { grid-column: 1 / -1; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -168,11 +173,12 @@
   <div class="row-end"><span id="pick-note" class="note"></span><button id="pick-cancel">Cancel</button><button id="pick-apply" class="on">Apply</button></div>
 </dialog>
 <dialog id="settings">
-  <h2>Settings · the model and thinking a worker starts with</h2>
+  <h2>Settings · the model and thinking a worker starts with, and a team's limits</h2>
   <div class="lead">A worker runs the first of: its role's spawn in the template, its harness profile, the model of the session that began the spawn chain, the harness default; <code>inherit</code> goes on down. Saved to the files at once; teams founded from now use it, a team already up keeps its own (change a running worker with Model ▾).</div>
   <div id="settings-body"></div>
   <datalist id="dl-models"></datalist>
   <datalist id="dl-levels"></datalist>
+  <datalist id="dl-limits"><option value="none"></option></datalist>
   <div class="row-end"><span id="settings-note" class="note"></span><button id="settings-close">Close</button></div>
 </dialog>
 <script>
@@ -835,7 +841,7 @@ function settingsRow(key, name, title, cur, harnessFixed, save) {
       toast(`${name}: saved`);
       await openSettings();
     } catch (e) {
-      settingsNotes[key] = { text: e.message, cls: "danger-text" };
+      settingsNotes[key] = { text: e.message.replace(/^usage: /, ""), cls: "danger-text" };
       btn.disabled = false;
       renderNote();
     }
@@ -844,6 +850,40 @@ function settingsRow(key, name, title, cur, harnessFixed, save) {
   const renderNote = () => { const n = settingsNotes[key]; note.className = "note " + (n ? n.cls : ""); note.textContent = n ? n.text : ""; };
   renderNote();
   return [h("div", { class: "name", title }, name), harness, model, thinking, btn, note];
+}
+
+const LIMIT_LABELS = { depth: "depth (spawn chain)", concurrency: "concurrency (workers at once)",
+  messages_per_participant_per_minute: "messages / member / min", max_respawn_per_hour: "respawns / worker / hour" };
+
+/** A template's limits: one input per limit (a number, or none) and one Save for them all. */
+function limitsRow(t) {
+  const key = "l:" + t.name, cur = Object.fromEntries(t.limits.map((l) => [l.name, l.value]));
+  const inputs = {};
+  const btn = h("button", { disabled: true, onclick: async () => {
+    btn.disabled = true;
+    const limits = Object.fromEntries(Object.entries(inputs).filter(([k, el]) => el.value.trim() !== cur[k]).map(([k, el]) => [k, el.value.trim() || "none"]));
+    try {
+      const r = await api("/api/settings/limits", { template: t.name, limits });
+      settingsNotes[key] = r.warnings && r.warnings.length ? { text: r.warnings.join(" · "), cls: "warn" } : { text: "saved to " + r.path, cls: "muted" };
+      toast(`${t.name} limits: saved`);
+      await openSettings();
+    } catch (e) {
+      settingsNotes[key] = { text: e.message.replace(/^usage: /, ""), cls: "danger-text" };
+      btn.disabled = false;
+      note.className = "note danger-text";
+      note.textContent = settingsNotes[key].text;
+    }
+  } }, "Save");
+  const dirty = () => Object.entries(inputs).some(([k, el]) => el.value.trim() !== cur[k]);
+  const fields = t.limits.map((l) => {
+    const el = inputs[l.name] = h("input", { list: "dl-limits", spellcheck: "false", autocomplete: "off", title: "a number, or none (no limit)" });
+    el.value = l.value;
+    el.addEventListener("input", () => { el.classList.toggle("dirty", el.value.trim() !== cur[l.name]); btn.disabled = !dirty(); });
+    return h("label", {}, LIMIT_LABELS[l.name] || l.name, el);
+  });
+  const n = settingsNotes[key];
+  const note = h("div", { class: "note " + (n ? n.cls : "") }, n ? n.text : "");
+  return h("div", { class: "lgrid" }, fields, btn, note);
 }
 
 function renderSettings() {
@@ -861,11 +901,12 @@ function renderSettings() {
       (v) => api("/api/settings/profile", { harness: p.harness, ...v })));
   }
   const out = [h("h3", {}, "Harness profiles"), h("div", { class: "lead" }, "Every worker of a harness, unless its role sets its own."), profiles,
-    h("h3", {}, "Template roles"), h("div", { class: "lead" }, "One role's workers; wins over the profile. Pin the harness with a model: names and levels belong to one harness.")];
+    h("h3", {}, "Templates"), h("div", { class: "lead" }, "Limits hold for each team founded from the template (concurrency: its live workers at once; a role that can spawn needs depth and concurrency). A role's spawn wins over the profile; pin the harness with a model: names and levels belong to one harness.")];
   if (settings.templates.length === 0) out.push(h("div", { class: "muted" }, "No template in ~/.piggery/templates."));
   for (const t of settings.templates) {
     out.push(h("h3", { title: t.path }, t.name));
     if (t.error) { out.push(h("div", { class: "danger-text" }, t.error)); continue; }
+    out.push(limitsRow(t));
     const grid = h("div", { class: "sgrid" }, head("harness"));
     for (const r of t.roles) {
       grid.append(...settingsRow(`r:${t.name}/${r.name}`, r.name, r.description, r, "",

@@ -4,9 +4,11 @@
 
 - `web` has Settings (`s`, or ⚙ in the header): the model and thinking workers start with, per
   harness profile (`~/.piggery/harness/<h>.json`) and per template role (`spawn.harness`,
-  `spawn.model`, `spawn.thinking` in `~/.piggery/templates/<t>/manifest.yaml`). A save writes that
-  value in place and keeps the rest of the file (comments, order, layout); a role's change is
-  checked as `team up` loads the template, and its warnings (a model pinned with harness
+  `spawn.model`, `spawn.thinking` in `~/.piggery/templates/<t>/manifest.yaml`), and each template's
+  `limits` (`depth`, `concurrency`: live workers at once per team, the message and respawn rates).
+  A save writes that
+  value in place and keeps the rest of the file (comments, order, layout); a template's change is
+  checked as `team up` loads it (a role that can spawn with `concurrency: none` is refused), and its warnings (a model pinned with harness
   `inherit`) are shown. Nothing restarts: teams founded from then on use it, a team already up
   keeps its own.
 

@@ -143,6 +143,7 @@ func (s *webServer) handler(addr string) http.Handler {
 	mux.HandleFunc("GET /api/settings", s.api(s.settings))
 	mux.HandleFunc("POST /api/settings/profile", s.api(s.setProfile))
 	mux.HandleFunc("POST /api/settings/role", s.api(s.setRole))
+	mux.HandleFunc("POST /api/settings/limits", s.api(s.setLimits))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !slices.Contains(hosts, r.Host) {
 			http.Error(w, "unknown host", http.StatusForbidden)

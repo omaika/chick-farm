@@ -214,3 +214,34 @@ func TestSetRoleSpawn(t *testing.T) {
 		t.Fatal("unknown key: no error")
 	}
 }
+
+// SetLimits writes numbers and none in place, keeps the comments, and refuses an unknown limit or a
+// value that is not a positive number or none.
+func TestSetLimits(t *testing.T) {
+	src, err := os.ReadFile("../../manifests/slp.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := SetLimits(src, map[string]string{"concurrency": "20", "depth": "3", "max_respawn_per_hour": "5", "messages_per_participant_per_minute": ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := parseManifest(string(out))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Limits["concurrency"] != 20 || m.Limits["depth"] != 3 || m.Limits["max_respawn_per_hour"] != 5 {
+		t.Fatalf("limits: %v", m.Limits)
+	}
+	if _, ok := m.Limits["messages_per_participant_per_minute"]; ok {
+		t.Fatalf("\"\" is none: %v", m.Limits)
+	}
+	if !strings.Contains(string(out), "  concurrency: 20           # live workers at once") {
+		t.Fatalf("the comment after concurrency is gone:\n%s", out)
+	}
+	for _, bad := range []map[string]string{{"concurrency": "0"}, {"concurrency": "-1"}, {"depth": "two"}, {"max_hops": "3"}} {
+		if _, err := SetLimits(src, bad); err == nil {
+			t.Fatalf("%v: no error", bad)
+		}
+	}
+}

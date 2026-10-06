@@ -13,6 +13,19 @@ import (
 // must be there (Fill adds it); a value that is a block scalar, a collection or spans lines is
 // an error. value is written plain when YAML reads it back as the same string, else quoted.
 func Set(src []byte, path []string, value string) ([]byte, error) {
+	return set(src, path, value, false)
+}
+
+// SetPlain is Set with value written as it is, for a scalar of another type than a string (10,
+// none, true): letters, digits and . _ - only.
+func SetPlain(src []byte, path []string, value string) ([]byte, error) {
+	if value == "" || strings.Trim(value, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-") != "" {
+		return nil, fmt.Errorf("%q is not a plain scalar", value)
+	}
+	return set(src, path, value, true)
+}
+
+func set(src []byte, path []string, value string, plain bool) ([]byte, error) {
 	if len(path) == 0 {
 		return nil, errors.New("no path")
 	}
@@ -49,9 +62,12 @@ func Set(src []byte, path []string, value string) ([]byte, error) {
 		m = v
 	}
 	p := strings.Join(path, ".")
-	text, err := scalarText(value, inFlow)
-	if err != nil {
-		return nil, err
+	text := value
+	if !plain {
+		var err error
+		if text, err = scalarText(value, inFlow); err != nil {
+			return nil, err
+		}
 	}
 	if v.Kind != yaml.ScalarNode || v.Style&(yaml.LiteralStyle|yaml.FoldedStyle) != 0 {
 		return nil, fmt.Errorf("%s is not a one-line value", p)

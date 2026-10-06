@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/sting8k/piggery/internal/yamlfill"
 )
@@ -55,6 +56,51 @@ func SetRoleSpawn(src []byte, role string, values map[string]string) ([]byte, er
 	ta, _ := parseTimers(string(out))
 	if err != nil || fmt.Sprintf("%+v %+v", before, tb) != fmt.Sprintf("%+v %+v", after, ta) {
 		return nil, errf(CodeInvalid, "setting role %s's spawn would change more of template %s; left as it is", role, before.Template)
+	}
+	return out, nil
+}
+
+// LimitNames are the limits SetLimits writes, in a template's order.
+var LimitNames = []string{"depth", "concurrency", "messages_per_participant_per_minute", "max_respawn_per_hour"}
+
+// SetLimits returns the template src with limits set from values (a name of LimitNames -> a
+// positive number or none), in place like SetRoleSpawn. Whether the result loads (a role that can
+// spawn needs depth and concurrency) is team up's check, not this one.
+func SetLimits(src []byte, values map[string]string) ([]byte, error) {
+	before, err := parseManifest(string(src))
+	if err != nil {
+		return nil, err
+	}
+	out, _, err := yamlfill.Fill(src, manifestKeys)
+	if err != nil {
+		return nil, errf(CodeInvalid, "manifest: %v", err)
+	}
+	if before.Limits == nil {
+		before.Limits = limitMap{}
+	}
+	for k, v := range values {
+		if !knownLimits[k] {
+			return nil, errf(CodeInvalid, "limits.%s: not one of %v", k, LimitNames)
+		}
+		if v == "" {
+			v = "none"
+		}
+		if v == "none" {
+			delete(before.Limits, k)
+		} else if n, err := strconv.Atoi(v); err != nil || n < 1 {
+			return nil, errf(CodeInvalid, "limits.%s: a positive number or none, not %q", k, v)
+		} else {
+			before.Limits[k], v = n, strconv.Itoa(n)
+		}
+		if out, err = yamlfill.SetPlain(out, []string{"limits", k}, v); err != nil {
+			return nil, errf(CodeInvalid, "manifest: %v", err)
+		}
+	}
+	after, err := parseManifest(string(out))
+	tb, _ := parseTimers(string(src))
+	ta, _ := parseTimers(string(out))
+	if err != nil || fmt.Sprintf("%+v %+v", before, tb) != fmt.Sprintf("%+v %+v", after, ta) {
+		return nil, errf(CodeInvalid, "setting the limits would change more of template %s; left as it is", before.Template)
 	}
 	return out, nil
 }

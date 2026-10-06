@@ -21,7 +21,7 @@ import (
 // The dashboard's Settings: the model and thinking a worker starts with, where piggery reads them
 // (docs/guide.md): each harness profile's (~/.piggery/harness/<h>.json, every worker of a harness)
 // and each template role's spawn (~/.piggery/templates/<t>/manifest.yaml, that role's workers,
-// before the profile). The page reads and writes those files itself, in place: the daemon reads a
+// before the profile); and each template's limits (how many workers at once, how deep). The page reads and writes those files itself, in place: the daemon reads a
 // profile at each spawn and a template at each found or team up, so nothing restarts, and a team
 // already up keeps the manifest it was brought up with.
 
@@ -41,15 +41,21 @@ type settingsRole struct {
 	Thinking    string `json:"thinking"`
 }
 
-type settingsTemplate struct {
-	Name  string         `json:"name"`
-	Path  string         `json:"path"`
-	Roles []settingsRole `json:"roles"`
-	Err   string         `json:"error,omitempty"`
+type settingsLimit struct {
+	Name  string `json:"name"`
+	Value string `json:"value"` // a number, or none
 }
 
-// settings is every harness profile's model and thinking and every template role's spawn, as
-// written (inherit where a value is left out).
+type settingsTemplate struct {
+	Name   string          `json:"name"`
+	Path   string          `json:"path"`
+	Roles  []settingsRole  `json:"roles"`
+	Limits []settingsLimit `json:"limits"`
+	Err    string          `json:"error,omitempty"`
+}
+
+// settings is every harness profile's model and thinking, every template role's spawn and every
+// template's limits, as written (inherit or none where a value is left out).
 func (s *webServer) settings(r *http.Request) (any, error) {
 	profiles := []settingsProfile{}
 	for _, h := range harnesses {
@@ -67,11 +73,11 @@ func (s *webServer) settings(r *http.Request) (any, error) {
 	}
 	templates := []settingsTemplate{}
 	for _, l := range listed {
-		t := settingsTemplate{Name: l.Name, Path: filepath.Join(l.From, manifests.ManifestFile), Roles: []settingsRole{}}
-		if roles, err := templateRoles(t.Path); err != nil {
+		t := settingsTemplate{Name: l.Name, Path: filepath.Join(l.From, manifests.ManifestFile), Roles: []settingsRole{}, Limits: []settingsLimit{}}
+		if roles, limits, err := templateSettings(t.Path); err != nil {
 			t.Err = err.Error()
 		} else {
-			t.Roles = roles
+			t.Roles, t.Limits = roles, limits
 		}
 		templates = append(templates, t)
 	}
@@ -79,17 +85,27 @@ func (s *webServer) settings(r *http.Request) (any, error) {
 		"profiles": profiles, "templates": templates}, nil
 }
 
-// templateRoles are the roles of the manifest at path in the file's order, with their spawn.
-func templateRoles(path string) ([]settingsRole, error) {
+// templateSettings are the roles of the manifest at path in the file's order, with their spawn,
+// and its limits in core.LimitNames' order.
+func templateSettings(path string) ([]settingsRole, []settingsLimit, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var doc struct {
-		Roles yaml.Node `yaml:"roles"`
+		Roles  yaml.Node         `yaml:"roles"`
+		Limits map[string]string `yaml:"limits"`
 	}
 	if err := yaml.Unmarshal(b, &doc); err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	limits := []settingsLimit{}
+	for _, n := range core.LimitNames {
+		v := doc.Limits[n]
+		if v == "" {
+			v = "none"
+		}
+		limits = append(limits, settingsLimit{Name: n, Value: v})
 	}
 	out := []settingsRole{}
 	for i := 0; i+1 < len(doc.Roles.Content); i += 2 {
@@ -102,12 +118,12 @@ func templateRoles(path string) ([]settingsRole, error) {
 			} `yaml:"spawn"`
 		}
 		if err := doc.Roles.Content[i+1].Decode(&r); err != nil {
-			return nil, fmt.Errorf("role %s: %w", doc.Roles.Content[i].Value, err)
+			return nil, nil, fmt.Errorf("role %s: %w", doc.Roles.Content[i].Value, err)
 		}
 		out = append(out, settingsRole{Name: doc.Roles.Content[i].Value, Description: r.Description,
 			Harness: orInherit(r.Spawn.Harness), Model: orInherit(r.Spawn.Model), Thinking: orInherit(r.Spawn.Thinking)})
 	}
-	return out, nil
+	return out, limits, nil
 }
 
 func orInherit(v string) string {
@@ -200,30 +216,55 @@ func (s *webServer) setRole(r *http.Request) (any, error) {
 	if err := json.NewDecoder(http.MaxBytesReader(nil, r.Body, 1<<16)).Decode(&a); err != nil {
 		return nil, fmt.Errorf("%w: %v", errUsage, err)
 	}
-	listed, err := manifests.List(s.e.dir)
-	if err != nil {
-		return nil, err
-	}
-	i := slices.IndexFunc(listed, func(l manifests.Listed) bool { return l.Name == a.Template })
-	if i < 0 {
-		return nil, fmt.Errorf("%w: no template %q in %s", errUsage, a.Template, manifests.Dir(s.e.dir))
-	}
 	harness := orInherit(a.Harness)
 	if harness != local.Inherit && !slices.Contains(local.Harnesses(), harness) {
 		return nil, fmt.Errorf("%w: harness %q: not inherit or one of %v", errUsage, harness, local.Harnesses())
 	}
 	values := map[string]string{"harness": harness}
 	for _, f := range []struct{ key, val string }{{"model", a.Model}, {"thinking", a.Thinking}} {
+		var err error
 		if values[f.key], err = settingValue(f.key, f.val); err != nil {
 			return nil, err
 		}
+	}
+	return s.editTemplate(a.Template, func(src []byte) ([]byte, error) { return core.SetRoleSpawn(src, a.Role, values) })
+}
+
+type limitsSetting struct {
+	Template string            `json:"template"`
+	Limits   map[string]string `json:"limits"` // a limit -> a positive number or none
+}
+
+// setLimits writes a template's limits in place; a result team up would refuse (a role that can
+// spawn with depth or concurrency none) is refused here.
+func (s *webServer) setLimits(r *http.Request) (any, error) {
+	var a limitsSetting
+	if err := json.NewDecoder(http.MaxBytesReader(nil, r.Body, 1<<16)).Decode(&a); err != nil {
+		return nil, fmt.Errorf("%w: %v", errUsage, err)
+	}
+	if len(a.Limits) == 0 {
+		return nil, fmt.Errorf("%w: no limit to set", errUsage)
+	}
+	return s.editTemplate(a.Template, func(src []byte) ([]byte, error) { return core.SetLimits(src, a.Limits) })
+}
+
+// editTemplate rewrites the manifest of the template called name with edit. The result must load as
+// team up loads it before it is written; its warnings come back.
+func (s *webServer) editTemplate(name string, edit func(src []byte) ([]byte, error)) (any, error) {
+	listed, err := manifests.List(s.e.dir)
+	if err != nil {
+		return nil, err
+	}
+	i := slices.IndexFunc(listed, func(l manifests.Listed) bool { return l.Name == name })
+	if i < 0 {
+		return nil, fmt.Errorf("%w: no template %q in %s", errUsage, name, manifests.Dir(s.e.dir))
 	}
 	path := filepath.Join(listed[i].From, manifests.ManifestFile)
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	out, err := core.SetRoleSpawn(src, a.Role, values)
+	out, err := edit(src)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", errUsage, err)
 	}
