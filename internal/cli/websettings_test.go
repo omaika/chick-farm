@@ -85,7 +85,7 @@ func TestWebSettings(t *testing.T) {
 	if want := "{\n  \"cmd\": \"claude\",\n  \"model\": \"sonnet\",\n  \"blacklist\": [],\n  \"thinking\": \"high\"\n}\n"; string(pb) != want {
 		t.Fatalf("profile:\n%s", pb)
 	}
-	if st, _ := os.Stat(profile); st.Mode().Perm() != 0o640 {
+	if st, _ := os.Stat(profile); unixModes && st.Mode().Perm() != 0o640 {
 		t.Fatalf("profile mode %v", st.Mode().Perm())
 	}
 
