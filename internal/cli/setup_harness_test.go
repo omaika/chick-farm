@@ -418,6 +418,7 @@ func oldMarker(t *testing.T, file string) {
 func TestSetupBackupOnce(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("DSH_HOME", "")
 	t.Setenv("PATH", t.TempDir())
 	dir := filepath.Join(home, ".piggery")
@@ -431,7 +432,7 @@ func TestSetupBackupOnce(t *testing.T) {
 	os.WriteFile(patch, []byte(before), 0o644)
 	msg, err := installDsh(dir)
 	got, _ := os.ReadFile(backup)
-	if st, serr := os.Stat(backup); err != nil || serr != nil || string(got) != before || st.Mode().Perm() != 0o600 || !strings.Contains(msg, backup) {
+	if st, serr := os.Stat(backup); err != nil || serr != nil || string(got) != before || unixModes && st.Mode().Perm() != 0o600 || !strings.Contains(msg, backup) {
 		t.Fatalf("backup: %q %v %v\n%s", msg, err, serr, got)
 	}
 	// the Human edits the file after piggery came in; a second run and an upgrade keep the backup
@@ -458,6 +459,7 @@ func TestSetupBackupOnce(t *testing.T) {
 func TestSetupPiExtRoundTrip(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("PI_CODING_AGENT_DIR", "")
 	t.Setenv("PATH", t.TempDir())
 	dir := filepath.Join(home, ".piggery")
@@ -497,6 +499,7 @@ func TestSetupPiExtRoundTrip(t *testing.T) {
 func TestSetupOpencodeInstallRemove(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("PATH", t.TempDir())
 	dir := filepath.Join(home, ".piggery")
