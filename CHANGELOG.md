@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fix: mail that reached a pi session at the very end of a reply was shown to the model, and pi
+  went on working with it, but piggery took the turn as finished; mail sent after that waited,
+  unannounced. The turn now stays open while pi works on that mail. The pi and omp integrations
+  are now 6 and dsh 7: run `piggery setup --outdated`, then restart open pi sessions or `/reload`
+  them. From sting8k/piggery v0.9.1.
+- Fix: a stopped worker no longer leaves an empty directory under `~/.piggery/run/`.
 - Fix: Codex Desktop, and TUIs started with `--remote`, run every thread in one `codex app-server`,
   so piggery made them one participant and a wake could reach the wrong thread. Under a shared
   app-server each thread is now its own participant (its host names the thread's session id); a
