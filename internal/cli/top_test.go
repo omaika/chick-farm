@@ -660,3 +660,45 @@ func hitFor(m *topModel, id string) (hit, bool) {
 	}
 	return hit{}, false
 }
+
+// f lists only one status at a time (working, waiting, idle, gone, then every row again), keeps a
+// team's line while a member matches (folded too), moves the selection into what is listed, and a
+// new top remembers it.
+func TestTopStatusFilter(t *testing.T) {
+	dir := t.TempDir()
+	mem := func(id, state string) core.MemberState { return core.MemberState{ID: id, Name: id, State: state} }
+	ps := proto.PsResult{State: core.State{
+		Teams: []core.TeamState{{ID: "t", Name: "shop", Members: []core.MemberState{mem("w1", "working"), mem("i1", "idle"), mem("p1", "awaiting_permission")}}},
+		Solos: []core.SoloState{{ID: "s1", Name: "s1", State: "idle"}}}}
+	m := newTopModel(nil, dir)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m.Update(fetched{ps: ps})
+	f := tea.KeyPressMsg{Code: 'f', Text: "f"}
+	items := func() string { return strings.Join(m.items(), " ") }
+	var got []string
+	for range 5 {
+		m.Update(f)
+		got = append(got, m.fold.Status+"="+items())
+	}
+	want := []string{"working=" + closedRow + "t w1", "waiting=" + closedRow + "t p1", "idle=" + closedRow + "t i1 s1", "gone=", "=" + closedRow + "t w1 i1 p1 s1"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("f cycles:\n got %q\nwant %q", got, want)
+	}
+	m.Update(f) // working
+	if m.sel != "w1" {
+		t.Fatalf("only working: sel %q; want w1", m.sel)
+	}
+	if !strings.Contains(strip(m.View().Content), "only working (f)") {
+		t.Fatal("the header does not say the filter")
+	}
+	m.sel = closedRow + "t"
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // fold the team: its line stays
+	if items() != closedRow+"t" {
+		t.Fatalf("folded, only working: %q; want the team's line", items())
+	}
+	again := newTopModel(nil, dir)
+	again.Update(fetched{ps: ps})
+	if again.fold.Status != "working" {
+		t.Fatalf("a new top filters %q; want working", again.fold.Status)
+	}
+}

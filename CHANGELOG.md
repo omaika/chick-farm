@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Filter the list by status: `ps --status working,waiting` (`working`, `idle`, `waiting`, `gone`);
+  in `top`, `f` lists only one status in turn (working, waiting, idle, gone, then every row; kept
+  for the next `top`); in `web`, a click on a count in the header (working, idle, waiting) lists only
+  that status, several at once, `f` clears it (kept in the browser). A team keeps its line while a
+  member matches.
 - A `thinking` column after `model` in `top`, `ps` and `web`: a member's thinking level as its
   session reports it, else as it was spawned or last set (`-` when unknown, e.g. inherit). A
   `display.columns` you wrote lists it only once you add it.

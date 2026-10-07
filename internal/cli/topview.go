@@ -404,6 +404,9 @@ func (m *topModel) header(now time.Time) string {
 		pill("● daemon "+view.Ago(m.ps.StartedAt, now), colSurface, colSuccess) + " " +
 		stMuted.Render(fmt.Sprintf(" %s · %d working · %d idle ", view.Plural(len(m.ps.Teams), "team"), working, idle)) +
 		held + " " + pill(fmt.Sprintf("unacked %d", m.ps.Unacked), colSurface, colMuted)
+	if m.fold.Status != "" { // f: only the rows of one status are listed
+		head += " " + pill("only "+m.fold.Status+" (f)", colPrimary, colOnMain)
+	}
 	if n := proto.Notice(m.ps.Outdated); n != "" { // an install only `piggery setup --outdated` brings up to date
 		head += " " + pill(n, colWarning, colInk)
 	}

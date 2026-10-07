@@ -19,6 +19,8 @@ type topState struct {
 	Events bool `json:"events,omitempty"`
 	// Notices is true when the user opened the notices box (it starts folded to one line, like the events).
 	Notices bool `json:"notices,omitempty"`
+	// Status is the status `f` lists only (a view.Status word), "" every row.
+	Status string `json:"status,omitempty"`
 }
 
 func topStatePath(dir string) string { return filepath.Join(dir, "cache", "top.json") }
@@ -47,7 +49,7 @@ func saveTopState(dir string, s topState, known map[string]bool) {
 	if dir == "" {
 		return
 	}
-	out := topState{Teams: map[string]bool{}, Gone: map[string]bool{}, Events: s.Events, Notices: s.Notices}
+	out := topState{Teams: map[string]bool{}, Gone: map[string]bool{}, Events: s.Events, Notices: s.Notices, Status: s.Status}
 	for id, v := range s.Teams {
 		if known[id] {
 			out.Teams[id] = v

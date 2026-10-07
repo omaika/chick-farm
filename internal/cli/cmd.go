@@ -163,8 +163,8 @@ func (e *env) root() *cobra.Command {
 				return nil
 			}),
 		team, template,
-		e.cmd("ps [--json|--view]", "Daemon, teams, members, solos and pending mail, once", grpWatch,
-			"piggery ps", authAdmin, e.ps),
+		e.cmd("ps [--json|--view|--status working,waiting]", "Daemon, teams, members, solos and pending mail, once", grpWatch,
+			"piggery ps\npiggery ps --status working,waiting", authAdmin, e.ps),
 		e.cmd("top", "The same, live, with the latest events and a worker's tail", grpWatch,
 			"piggery top", authAdmin, e.top),
 		e.cmd("web [--addr 127.0.0.1:4125] [--open]", "The same as top, in the browser (loopback only)", grpWatch,

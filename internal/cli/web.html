@@ -31,7 +31,9 @@
 
   header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; padding: 10px 16px 6px; }
   header .brand { font-weight: 600; font-size: 15px; }
-  header .counts { display: flex; gap: 14px; font-variant-numeric: tabular-nums; }
+  header .counts { display: flex; gap: 14px; align-items: baseline; font-variant-numeric: tabular-nums; }
+  header .counts button { border-color: transparent; padding: 0 6px; margin: 0 -6px; }
+  header .counts button.on { border-color: currentColor; background: var(--sel); }
   header .right { margin-left: auto; }
   #notes { padding: 0 16px; }
   #notes div { padding: 2px 0; }
@@ -162,7 +164,8 @@
 </footer>
 <div class="keys">
   <kbd>↑</kbd><kbd>↓</kbd> select · <kbd>←</kbd><kbd>→</kbd> tab · <kbd>enter</kbd> open/close · <kbd>t</kbd> overview/tail · <kbd>m</kbd> mail · <kbd>b</kbd> board · <kbd>a</kbd> tasks ·
-  <kbd>x</kbd> kill · <kbd>M</kbd> model · <kbd>e</kbd> events · <kbd>n</kbd> notices · <kbd>s</kbd> settings
+  <kbd>x</kbd> kill · <kbd>M</kbd> model · <kbd>e</kbd> events · <kbd>n</kbd> notices · <kbd>s</kbd> settings ·
+  click a count to filter by status · <kbd>f</kbd> clear it
 </div>
 <div id="toast"></div>
 <dialog id="picker">
@@ -204,7 +207,7 @@ function h(tag, attrs, ...kids) {
 }
 
 // What the user chose, kept in the browser like top keeps cache/top.json.
-const ui = Object.assign({ tab: "", sel: "", side: "overview", teams: {}, gone: {}, events: false, notices: false },
+const ui = Object.assign({ tab: "", sel: "", side: "overview", teams: {}, gone: {}, status: [], events: false, notices: false },
   JSON.parse(localStorage.getItem("piggery-web") || "{}"));
 const save = () => localStorage.setItem("piggery-web", JSON.stringify(ui));
 
@@ -235,12 +238,41 @@ function rowIndex() {
   return out;
 }
 
-/** The directories the tab lists: All, Closed, or one team's blocks. */
+/** The directories the tab lists: All, Closed, or one team's blocks; only the rows of the chosen statuses. */
 function dirsOfTab() {
-  if (ui.tab === "") return view.all.dirs;
-  if (ui.tab === CLOSED) return view.closed.dirs;
+  if (ui.tab === "") return byStatus(view.all.dirs);
+  if (ui.tab === CLOSED) return byStatus(view.closed.dirs);
   const tabsOf = (b) => (b.head ? b.head.tabs : b.rows[0] && b.rows[0].tabs) || [];
-  return view.all.dirs.map((d) => ({ ...d, blocks: d.blocks.filter((b) => tabsOf(b).includes(ui.tab)) })).filter((d) => d.blocks.length > 0);
+  return byStatus(view.all.dirs.map((d) => ({ ...d, blocks: d.blocks.filter((b) => tabsOf(b).includes(ui.tab)) })).filter((d) => d.blocks.length > 0));
+}
+
+/**
+ * The rows whose status the header's filter chose (none chosen: every row). A team keeps its line while a
+ * member matches; a closed team's line goes with its members; a block, then a directory, with nothing left goes.
+ */
+function byStatus(dirs) {
+  if (ui.status.length === 0) return dirs;
+  const ok = (r) => ui.status.includes(r.status);
+  const block = (b) => {
+    if (b.head) {
+      const rows = b.rows.filter(ok);
+      return rows.length ? { ...b, rows, no_members: false } : null;
+    }
+    const [first, ...rest] = b.rows;
+    if (first && first.kind === "team") {
+      const rows = rest.filter(ok);
+      return ok(first) || rows.length ? { ...b, rows: [first, ...rows] } : null;
+    }
+    const rows = b.rows.filter(ok);
+    return rows.length ? { ...b, rows } : null;
+  };
+  return dirs.map((d) => ({ ...d, blocks: d.blocks.map(block).filter(Boolean) })).filter((d) => d.blocks.length > 0);
+}
+
+function toggleStatus(st) {
+  ui.status = ui.status.includes(st) ? ui.status.filter((s) => s !== st) : ui.status.concat(st);
+  save();
+  render();
 }
 
 const teamOpen = (id, byDefault) => ui.teams[id] ?? byDefault;
@@ -275,7 +307,8 @@ function renderList() {
   items = [];
   const dirs = dirsOfTab();
   if (dirs.length === 0) {
-    list.replaceChildren(h("div", { class: "empty" }, ui.tab === CLOSED ? "No closed team." : "Nothing runs yet. Open an agent session, or ask one to make a team."));
+    list.replaceChildren(h("div", { class: "empty" }, ui.status.length ? `Nothing ${ui.status.join(" or ")} here (f clears the filter).`
+      : ui.tab === CLOSED ? "No closed team." : "Nothing runs yet. Open an agent session, or ask one to make a team."));
     return;
   }
   const grid = h("div", { class: "grid", style: `grid-template-columns: minmax(180px, 2.4fr) ${view.columns.map((c) => (["ctx", "turns", "age", "since"].includes(c) ? "max-content" : "minmax(60px, 1fr)")).join(" ")}` });
@@ -330,10 +363,10 @@ function renderHeader() {
   const d = view.daemon || {};
   $("daemon").textContent = `pid ${d.pid} · up ${d.age}${d.version ? " · " + d.version : ""}`;
   const s = view.summary;
+  const chip = (st, icon, n) => h("button", { class: `s-${st}${ui.status.includes(st) ? " on" : ""}`, title: `list only what is ${st} (click again to drop it)`,
+    onclick: () => toggleStatus(st) }, `${icon} ${n || 0} ${st}`);
   $("counts").replaceChildren(
-    h("span", { class: "s-working" }, `● ${s.working} working`),
-    h("span", { class: "s-idle" }, `○ ${s.idle} idle`),
-    h("span", { class: "s-waiting" }, `◐ ${s.waiting || 0} waiting`),
+    chip("working", "●", s.working), chip("idle", "○", s.idle), chip("waiting", "◐", s.waiting),
     h("span", {}, `${s.teams} team${s.teams === 1 ? "" : "s"}`),
     h("span", { class: s.held ? "warn" : "muted" }, `held ${s.held}`),
     h("span", { class: s.unacked ? "warn" : "muted" }, `unacked ${s.unacked}`));
@@ -938,7 +971,7 @@ document.addEventListener("keydown", (e) => {
     m: () => (ui.side === "mail" ? $("tab-overview") : $("tab-mail")).click(),
     b: () => (ui.side === "board" ? $("tab-overview") : $("tab-board")).click(),
     a: () => (ui.side === "tasks" ? $("tab-overview") : $("tab-tasks")).click(),
-    x: kill, M: () => openPicker(), s: openSettings,
+    x: kill, M: () => openPicker(), s: openSettings, f: () => { ui.status = []; save(); render(); },
     e: () => $("events-h").click(), n: () => $("notices-h").click(),
   }[e.key];
   if (go) { go(); e.preventDefault(); }
