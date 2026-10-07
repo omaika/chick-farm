@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	"github.com/sting8k/piggery/internal/core"
+	"github.com/sting8k/piggery/internal/platform"
 )
 
 const ocFixtures = "../../../testdata/fixtures/opencode/1.18.34/"
@@ -61,7 +63,7 @@ func TestOpencodeHelperProcess(t *testing.T) {
 	logLine(map[string]any{"env": env, "args": os.Args})
 	// a tool's shell: its own process group, so a signal to serve's group misses it
 	child := exec.Command("sleep", "300")
-	child.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	platform.NewGroup(child)
 	child.Start()
 	os.WriteFile(os.Getenv("PGDRV_CHILD"), []byte(strconv.Itoa(child.Process.Pid)), 0o600)
 
@@ -112,7 +114,7 @@ func TestOpencodeHelperProcess(t *testing.T) {
 			io.WriteString(w, `{"id":"`+id+`","model":{"id":"glm-5.3-flash","providerID":"hp","variant":"default"}}`)
 		case rest == "abort":
 			if pid, err := strconv.Atoi(strings.TrimSpace(readFile(os.Getenv("PGDRV_CHILD")))); err == nil {
-				syscall.Kill(pid, syscall.SIGKILL)
+				platform.Kill(pid, syscall.SIGKILL)
 			}
 			io.WriteString(w, "true")
 		case rest == "prompt_async":
@@ -166,8 +168,13 @@ func TestOpencodeHelperProcess(t *testing.T) {
 	})
 	_ = sessionBody
 	fmt.Println("Warning: OPENCODE_SERVER_PASSWORD is not set; server is unsecured.") // a first line the driver must skip, as serve prints it without a password
+	l, err := net.Listen("tcp", "127.0.0.1:"+port)                                    // listening before the line, as serve is
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	fmt.Println("opencode server listening on http://127.0.0.1:" + port)
-	http.ListenAndServe("127.0.0.1:"+port, h)
+	http.Serve(l, h)
 	os.Exit(0)
 }
 
@@ -191,6 +198,7 @@ type ocEnv struct {
 // for serve, answering with the captures; events is an SSE capture to replay (and its session id).
 func newOpencodeDriver(t *testing.T, prof OpencodeProfile, events, oldSID string, opts ...Options) ocEnv {
 	t.Helper()
+	skipOnWindows(t, "the fake opencode is a sh script")
 	dir := t.TempDir()
 	wrapper := filepath.Join(t.TempDir(), "opencode")
 	script := fmt.Sprintf("#!/bin/sh\nexec %q -test.run='^TestOpencodeHelperProcess$' -- \"$@\"\n", os.Args[0])
@@ -314,7 +322,7 @@ func TestOpencodeStartStop(t *testing.T) {
 	}
 	waitRecord(t, e.d, "p1", "agent_end")
 	childPID, _ := strconv.Atoi(readFile(e.child))
-	if syscall.Kill(childPID, 0) != nil {
+	if !platform.Alive(childPID) {
 		t.Fatal("the fake tool shell is gone before the stop")
 	}
 	t0 := time.Now()
@@ -329,7 +337,7 @@ func TestOpencodeStartStop(t *testing.T) {
 	if got := e.requests(t, "POST /session/ses_fake1/abort"); len(got) != 1 {
 		t.Errorf("abort requests at stop: %d", len(got))
 	}
-	waitFor(t, "the tool shell to be gone", func() bool { return syscall.Kill(childPID, 0) != nil })
+	waitFor(t, "the tool shell to be gone", func() bool { return !platform.Alive(childPID) })
 }
 
 // Resume continues the session core names: the plugin is told which (PIGGERY_OPENCODE_SESSION), no
