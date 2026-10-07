@@ -31,7 +31,9 @@
 
   header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; padding: 10px 16px 6px; }
   header .brand { font-weight: 600; font-size: 15px; }
-  header .counts { display: flex; gap: 14px; font-variant-numeric: tabular-nums; }
+  header .counts { display: flex; gap: 14px; align-items: baseline; font-variant-numeric: tabular-nums; }
+  header .counts button { border-color: transparent; padding: 0 6px; margin: 0 -6px; }
+  header .counts button.on { border-color: currentColor; background: var(--sel); }
   header .right { margin-left: auto; }
   #notes { padding: 0 16px; }
   #notes div { padding: 2px 0; }
@@ -113,6 +115,21 @@
   .levels { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
   .row-end { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; align-items: center; }
   .row-end .note { margin-right: auto; color: var(--danger); }
+  dialog#settings { width: min(1000px, 96vw); max-height: 88vh; }
+  #settings h3 { font-size: 13px; margin: 16px 0 2px; }
+  #settings .lead { color: var(--muted); margin: 0 0 6px; }
+  .sgrid { display: grid; grid-template-columns: minmax(120px, 1.1fr) minmax(90px, .8fr) minmax(160px, 1.6fr) minmax(90px, .8fr) 64px; gap: 4px 8px; align-items: center; }
+  .sgrid .th { color: var(--muted); font-size: 11px; }
+  .sgrid input, .sgrid select { width: 100%; font: inherit; font-family: var(--mono); font-size: 12px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .sgrid input.dirty, .sgrid select.dirty { border-color: var(--accent); }
+  .sgrid .name { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sgrid .note { grid-column: 1 / -1; font-size: 12px; margin: -2px 0 4px; }
+  .sgrid button:disabled, .lgrid button:disabled { opacity: .4; cursor: default; background: none; }
+  .lgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) 64px; gap: 2px 8px; align-items: end; margin: 2px 0 10px; }
+  .lgrid label { color: var(--muted); font-size: 11px; display: flex; flex-direction: column; gap: 2px; }
+  .lgrid input { width: 100%; font: inherit; font-family: var(--mono); font-size: 12px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .lgrid input.dirty { border-color: var(--accent); }
+  .lgrid .note { grid-column: 1 / -1; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -121,6 +138,7 @@
   <span id="daemon" class="muted"></span>
   <span id="counts" class="counts"></span>
   <span id="fresh" class="right muted"></span>
+  <button id="act-settings" title="the model and thinking workers start with (s)">⚙ Settings</button>
 </header>
 <div id="notes"></div>
 <nav id="tabs"></nav>
@@ -146,7 +164,8 @@
 </footer>
 <div class="keys">
   <kbd>↑</kbd><kbd>↓</kbd> select · <kbd>←</kbd><kbd>→</kbd> tab · <kbd>enter</kbd> open/close · <kbd>t</kbd> overview/tail · <kbd>m</kbd> mail · <kbd>b</kbd> board · <kbd>a</kbd> tasks ·
-  <kbd>x</kbd> kill · <kbd>M</kbd> model · <kbd>e</kbd> events · <kbd>n</kbd> notices
+  <kbd>x</kbd> kill · <kbd>M</kbd> model · <kbd>e</kbd> events · <kbd>n</kbd> notices · <kbd>s</kbd> settings ·
+  click a count to filter by status · <kbd>f</kbd> clear it
 </div>
 <div id="toast"></div>
 <dialog id="picker">
@@ -155,6 +174,15 @@
   <div id="models"></div>
   <div class="levels"><span class="muted">thinking</span><span id="levels"></span></div>
   <div class="row-end"><span id="pick-note" class="note"></span><button id="pick-cancel">Cancel</button><button id="pick-apply" class="on">Apply</button></div>
+</dialog>
+<dialog id="settings">
+  <h2>Settings · the model and thinking a worker starts with, and a team's limits</h2>
+  <div class="lead">A worker runs the first of: its role's spawn in the template, its harness profile, the model of the session that began the spawn chain, the harness default; <code>inherit</code> goes on down. Saved to the files at once; teams founded from now use it, a team already up keeps its own (change a running worker with Model ▾).</div>
+  <div id="settings-body"></div>
+  <datalist id="dl-models"></datalist>
+  <datalist id="dl-levels"></datalist>
+  <datalist id="dl-limits"><option value="none"></option></datalist>
+  <div class="row-end"><span id="settings-note" class="note"></span><button id="settings-close">Close</button></div>
 </dialog>
 <script>
 "use strict";
@@ -179,7 +207,7 @@ function h(tag, attrs, ...kids) {
 }
 
 // What the user chose, kept in the browser like top keeps cache/top.json.
-const ui = Object.assign({ tab: "", sel: "", side: "overview", teams: {}, gone: {}, events: false, notices: false },
+const ui = Object.assign({ tab: "", sel: "", side: "overview", teams: {}, gone: {}, status: [], events: false, notices: false },
   JSON.parse(localStorage.getItem("piggery-web") || "{}"));
 const save = () => localStorage.setItem("piggery-web", JSON.stringify(ui));
 
@@ -210,12 +238,41 @@ function rowIndex() {
   return out;
 }
 
-/** The directories the tab lists: All, Closed, or one team's blocks. */
+/** The directories the tab lists: All, Closed, or one team's blocks; only the rows of the chosen statuses. */
 function dirsOfTab() {
-  if (ui.tab === "") return view.all.dirs;
-  if (ui.tab === CLOSED) return view.closed.dirs;
+  if (ui.tab === "") return byStatus(view.all.dirs);
+  if (ui.tab === CLOSED) return byStatus(view.closed.dirs);
   const tabsOf = (b) => (b.head ? b.head.tabs : b.rows[0] && b.rows[0].tabs) || [];
-  return view.all.dirs.map((d) => ({ ...d, blocks: d.blocks.filter((b) => tabsOf(b).includes(ui.tab)) })).filter((d) => d.blocks.length > 0);
+  return byStatus(view.all.dirs.map((d) => ({ ...d, blocks: d.blocks.filter((b) => tabsOf(b).includes(ui.tab)) })).filter((d) => d.blocks.length > 0));
+}
+
+/**
+ * The rows whose status the header's filter chose (none chosen: every row). A team keeps its line while a
+ * member matches; a closed team's line goes with its members; a block, then a directory, with nothing left goes.
+ */
+function byStatus(dirs) {
+  if (ui.status.length === 0) return dirs;
+  const ok = (r) => ui.status.includes(r.status);
+  const block = (b) => {
+    if (b.head) {
+      const rows = b.rows.filter(ok);
+      return rows.length ? { ...b, rows, no_members: false } : null;
+    }
+    const [first, ...rest] = b.rows;
+    if (first && first.kind === "team") {
+      const rows = rest.filter(ok);
+      return ok(first) || rows.length ? { ...b, rows: [first, ...rows] } : null;
+    }
+    const rows = b.rows.filter(ok);
+    return rows.length ? { ...b, rows } : null;
+  };
+  return dirs.map((d) => ({ ...d, blocks: d.blocks.map(block).filter(Boolean) })).filter((d) => d.blocks.length > 0);
+}
+
+function toggleStatus(st) {
+  ui.status = ui.status.includes(st) ? ui.status.filter((s) => s !== st) : ui.status.concat(st);
+  save();
+  render();
 }
 
 const teamOpen = (id, byDefault) => ui.teams[id] ?? byDefault;
@@ -250,7 +307,8 @@ function renderList() {
   items = [];
   const dirs = dirsOfTab();
   if (dirs.length === 0) {
-    list.replaceChildren(h("div", { class: "empty" }, ui.tab === CLOSED ? "No closed team." : "Nothing runs yet. Open an agent session, or ask one to make a team."));
+    list.replaceChildren(h("div", { class: "empty" }, ui.status.length ? `Nothing ${ui.status.join(" or ")} here (f clears the filter).`
+      : ui.tab === CLOSED ? "No closed team." : "Nothing runs yet. Open an agent session, or ask one to make a team."));
     return;
   }
   const grid = h("div", { class: "grid", style: `grid-template-columns: minmax(180px, 2.4fr) ${view.columns.map((c) => (["ctx", "turns", "age", "since"].includes(c) ? "max-content" : "minmax(60px, 1fr)")).join(" ")}` });
@@ -305,10 +363,10 @@ function renderHeader() {
   const d = view.daemon || {};
   $("daemon").textContent = `pid ${d.pid} · up ${d.age}${d.version ? " · " + d.version : ""}`;
   const s = view.summary;
+  const chip = (st, icon, n) => h("button", { class: `s-${st}${ui.status.includes(st) ? " on" : ""}`, title: `list only what is ${st} (click again to drop it)`,
+    onclick: () => toggleStatus(st) }, `${icon} ${n || 0} ${st}`);
   $("counts").replaceChildren(
-    h("span", { class: "s-working" }, `● ${s.working} working`),
-    h("span", { class: "s-idle" }, `○ ${s.idle} idle`),
-    h("span", { class: "s-waiting" }, `◐ ${s.waiting || 0} waiting`),
+    chip("working", "●", s.working), chip("idle", "○", s.idle), chip("waiting", "◐", s.waiting),
     h("span", {}, `${s.teams} team${s.teams === 1 ? "" : "s"}`),
     h("span", { class: s.held ? "warn" : "muted" }, `held ${s.held}`),
     h("span", { class: s.unacked ? "warn" : "muted" }, `unacked ${s.unacked}`));
@@ -767,10 +825,138 @@ $("tab-tasks").onclick = () => { ui.side = "tasks"; save(); renderSide(); pollTa
 $("events-h").onclick = () => { ui.events = !ui.events; save(); renderBottom(); };
 $("notices-h").onclick = () => { ui.notices = !ui.notices; save(); renderBottom(); };
 
+// ---- settings: harness profiles and template roles (websettings.go) ----
+
+let settings = null;
+const settingsNotes = {}; // row key -> { text, cls } shown under the row after a save
+
+async function openSettings() {
+  $("settings-note").textContent = "reading…";
+  if (!$("settings").open) $("settings").showModal();
+  try {
+    settings = await api("/api/settings");
+    $("settings-note").textContent = "";
+  } catch (e) {
+    $("settings-note").textContent = e.message;
+  }
+  renderSettings();
+}
+
+/** The values the inputs suggest: what the settings already name and the models workers run now. */
+function settingsLists() {
+  const models = new Set(["inherit"]);
+  for (const p of settings.profiles) if (!p.error) models.add(p.model);
+  for (const t of settings.templates) for (const r of t.roles) models.add(r.model);
+  if (view) for (const r of rowIndex().values()) if (r.model && r.model !== "-") models.add(r.model);
+  $("dl-models").replaceChildren(...[...models].sort().map((m) => h("option", { value: m })));
+  $("dl-levels").replaceChildren(...["inherit", ...settings.levels].map((l) => h("option", { value: l })));
+}
+
+/** One editable row: name, then harness (a select, or fixed text), model, thinking, Save. */
+function settingsRow(key, name, title, cur, harnessFixed, save) {
+  const field = (k, el) => {
+    el.value = cur[k];
+    el.addEventListener("input", () => { el.classList.toggle("dirty", el.value.trim() !== cur[k]); btn.disabled = !dirty(); });
+    return el;
+  };
+  const harness = harnessFixed ? h("div", { class: "muted name" }, harnessFixed)
+    : field("harness", h("select", {}, settings.harnesses.map((x) => h("option", { value: x }, x))));
+  const model = field("model", h("input", { list: "dl-models", spellcheck: "false", autocomplete: "off" }));
+  const thinking = field("thinking", h("input", { list: "dl-levels", spellcheck: "false", autocomplete: "off" }));
+  const inputs = { model, thinking, ...(harnessFixed ? {} : { harness }) };
+  const dirty = () => Object.entries(inputs).some(([k, el]) => el.value.trim() !== cur[k]);
+  const btn = h("button", { disabled: true, onclick: async () => {
+    btn.disabled = true;
+    const vals = Object.fromEntries(Object.entries(inputs).map(([k, el]) => [k, el.value.trim()]));
+    try {
+      const r = await save(vals);
+      settingsNotes[key] = r.warnings && r.warnings.length ? { text: r.warnings.join(" · "), cls: "warn" } : { text: "saved to " + r.path, cls: "muted" };
+      toast(`${name}: saved`);
+      await openSettings();
+    } catch (e) {
+      settingsNotes[key] = { text: e.message.replace(/^usage: /, ""), cls: "danger-text" };
+      btn.disabled = false;
+      renderNote();
+    }
+  } }, "Save");
+  const note = h("div", { class: "note" });
+  const renderNote = () => { const n = settingsNotes[key]; note.className = "note " + (n ? n.cls : ""); note.textContent = n ? n.text : ""; };
+  renderNote();
+  return [h("div", { class: "name", title }, name), harness, model, thinking, btn, note];
+}
+
+const LIMIT_LABELS = { depth: "depth (spawn chain)", concurrency: "concurrency (workers at once)",
+  messages_per_participant_per_minute: "messages / member / min", max_respawn_per_hour: "respawns / worker / hour" };
+
+/** A template's limits: one input per limit (a number, or none) and one Save for them all. */
+function limitsRow(t) {
+  const key = "l:" + t.name, cur = Object.fromEntries(t.limits.map((l) => [l.name, l.value]));
+  const inputs = {};
+  const btn = h("button", { disabled: true, onclick: async () => {
+    btn.disabled = true;
+    const limits = Object.fromEntries(Object.entries(inputs).filter(([k, el]) => el.value.trim() !== cur[k]).map(([k, el]) => [k, el.value.trim() || "none"]));
+    try {
+      const r = await api("/api/settings/limits", { template: t.name, limits });
+      settingsNotes[key] = r.warnings && r.warnings.length ? { text: r.warnings.join(" · "), cls: "warn" } : { text: "saved to " + r.path, cls: "muted" };
+      toast(`${t.name} limits: saved`);
+      await openSettings();
+    } catch (e) {
+      settingsNotes[key] = { text: e.message.replace(/^usage: /, ""), cls: "danger-text" };
+      btn.disabled = false;
+      note.className = "note danger-text";
+      note.textContent = settingsNotes[key].text;
+    }
+  } }, "Save");
+  const dirty = () => Object.entries(inputs).some(([k, el]) => el.value.trim() !== cur[k]);
+  const fields = t.limits.map((l) => {
+    const el = inputs[l.name] = h("input", { list: "dl-limits", spellcheck: "false", autocomplete: "off", title: "a number, or none (no limit)" });
+    el.value = l.value;
+    el.addEventListener("input", () => { el.classList.toggle("dirty", el.value.trim() !== cur[l.name]); btn.disabled = !dirty(); });
+    return h("label", {}, LIMIT_LABELS[l.name] || l.name, el);
+  });
+  const n = settingsNotes[key];
+  const note = h("div", { class: "note " + (n ? n.cls : "") }, n ? n.text : "");
+  return h("div", { class: "lgrid" }, fields, btn, note);
+}
+
+function renderSettings() {
+  const body = $("settings-body");
+  if (!settings) return body.replaceChildren();
+  settingsLists();
+  const head = (first) => ["", first, "model", "thinking", ""].map((t) => h("div", { class: "th" }, t));
+  const profiles = h("div", { class: "sgrid" }, head("file"));
+  for (const p of settings.profiles) {
+    if (p.error) {
+      profiles.append(h("div", { class: "name" }, p.harness), h("div", { class: "muted", style: "grid-column: 2 / -1" }, p.error));
+      continue;
+    }
+    profiles.append(...settingsRow("p:" + p.harness, p.harness, p.path, p, p.path.split(/[\\/]/).pop(),
+      (v) => api("/api/settings/profile", { harness: p.harness, ...v })));
+  }
+  const out = [h("h3", {}, "Harness profiles"), h("div", { class: "lead" }, "Every worker of a harness, unless its role sets its own."), profiles,
+    h("h3", {}, "Templates"), h("div", { class: "lead" }, "Limits hold for each team founded from the template (concurrency: its live workers at once; a role that can spawn needs depth and concurrency). A role's spawn wins over the profile; pin the harness with a model: names and levels belong to one harness.")];
+  if (settings.templates.length === 0) out.push(h("div", { class: "muted" }, "No template in ~/.piggery/templates."));
+  for (const t of settings.templates) {
+    out.push(h("h3", { title: t.path }, t.name));
+    if (t.error) { out.push(h("div", { class: "danger-text" }, t.error)); continue; }
+    out.push(limitsRow(t));
+    const grid = h("div", { class: "sgrid" }, head("harness"));
+    for (const r of t.roles) {
+      grid.append(...settingsRow(`r:${t.name}/${r.name}`, r.name, r.description, r, "",
+        (v) => api("/api/settings/role", { template: t.name, role: r.name, ...v })));
+    }
+    out.push(grid);
+  }
+  body.replaceChildren(...out);
+}
+
+$("act-settings").onclick = openSettings;
+$("settings-close").onclick = () => $("settings").close();
+
 // ---- keys: top's ----
 
 document.addEventListener("keydown", (e) => {
-  if ($("picker").open || e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if ($("picker").open || $("settings").open || e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
   const tabs = view ? view.tabs : [];
   const ti = tabs.findIndex((t) => t.key === ui.tab);
   const go = {
@@ -785,7 +971,7 @@ document.addEventListener("keydown", (e) => {
     m: () => (ui.side === "mail" ? $("tab-overview") : $("tab-mail")).click(),
     b: () => (ui.side === "board" ? $("tab-overview") : $("tab-board")).click(),
     a: () => (ui.side === "tasks" ? $("tab-overview") : $("tab-tasks")).click(),
-    x: kill, M: () => openPicker(),
+    x: kill, M: () => openPicker(), s: openSettings, f: () => { ui.status = []; save(); render(); },
     e: () => $("events-h").click(), n: () => $("notices-h").click(),
   }[e.key];
   if (go) { go(); e.preventDefault(); }

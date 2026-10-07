@@ -29,7 +29,8 @@ import (
 
 // The web dashboard: top in a browser. One page (web.html) polls the snapshot as `ps --view` writes
 // it, the selected participant's tail as `tail --view` reads it, and does what top does to a worker
-// (kill, model and thinking). It listens on loopback only; every API call carries the token the page
+// (kill, model and thinking), and edits the model and thinking workers start with (Settings,
+// websettings.go). It listens on loopback only; every API call carries the token the page
 // was served with, and a request whose Host is not the address it listens on is refused, so another
 // site in the same browser can neither call it nor read the token (DNS rebinding).
 
@@ -139,6 +140,10 @@ func (s *webServer) handler(addr string) http.Handler {
 	mux.HandleFunc("GET /api/tasks", s.api(s.tasks))
 	mux.HandleFunc("POST /api/kill", s.api(s.kill))
 	mux.HandleFunc("POST /api/model", s.api(s.model))
+	mux.HandleFunc("GET /api/settings", s.api(s.settings))
+	mux.HandleFunc("POST /api/settings/profile", s.api(s.setProfile))
+	mux.HandleFunc("POST /api/settings/role", s.api(s.setRole))
+	mux.HandleFunc("POST /api/settings/limits", s.api(s.setLimits))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !slices.Contains(hosts, r.Host) {
 			http.Error(w, "unknown host", http.StatusForbidden)

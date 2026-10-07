@@ -60,3 +60,13 @@ func StatusOf(state string) Status {
 // AllStates are the states a participant can be in, for the width of a STATE column (which sizes to
 // the widest word StateText gives for them, `requested` being shown as `queued`).
 var AllStates = []string{"requested", "starting", "working", "idle", "awaiting_permission", "parked", "gone"}
+
+// StatusNamed is the status whose Word is w.
+func StatusNamed(w string) (Status, bool) {
+	for _, s := range []Status{StatusIdle, StatusWorking, StatusWaiting, StatusGone} {
+		if s.Word() == w {
+			return s, true
+		}
+	}
+	return 0, false
+}

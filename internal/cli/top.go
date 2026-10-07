@@ -160,10 +160,10 @@ func newTopModel(c *Client, dir string) *topModel {
 
 // topKeys are top's keys; the footer shows the short list, ? the full one.
 type topKeys struct {
-	Next, Prev, Up, Down, Preview, Pane, Close, Events, Notices, Mouse, Kill, Help, Quit key.Binding
-	PgUp, PgDown, Home, End                                                              key.Binding // ? only
-	Model                                                                                key.Binding
-	mouseOn                                                                              bool // what the m entry says
+	Next, Prev, Up, Down, Preview, Pane, Close, Events, Notices, Filter, Mouse, Kill, Help, Quit key.Binding
+	PgUp, PgDown, Home, End                                                                      key.Binding // ? only
+	Model                                                                                        key.Binding
+	mouseOn                                                                                      bool // what the m entry says
 }
 
 func newTopKeys() topKeys {
@@ -180,6 +180,7 @@ func newTopKeys() topKeys {
 		Close:   b([]string{"esc"}, "esc", "back"),
 		Events:  b([]string{"e"}, "e", "events"),
 		Notices: b([]string{"n"}, "n", "notices"),
+		Filter:  b([]string{"f"}, "f", "status filter: all, working, waiting, idle, gone"),
 		Mouse:   b([]string{"m"}, "m", "mouse"),
 		Kill:    b([]string{"x"}, "x", "kill worker"),
 		Model:   b([]string{"M"}, "M", "model"),
@@ -218,7 +219,7 @@ func onOff(on bool) string {
 
 func (k topKeys) FullHelp() [][]key.Binding {
 	k.Mouse.SetHelp("m", "mouse "+onOff(k.mouseOn)+" (off: select text)")
-	return [][]key.Binding{{k.Next, k.Prev}, {k.Down, k.PgUp, k.Home}, {k.Preview, k.Pane, k.Close}, {k.Events, k.Notices, k.Mouse, k.Kill, k.Model, k.Help, k.Quit}}
+	return [][]key.Binding{{k.Next, k.Prev}, {k.Down, k.PgUp, k.Home}, {k.Preview, k.Pane, k.Close}, {k.Events, k.Notices, k.Filter, k.Mouse, k.Kill, k.Model, k.Help, k.Quit}}
 }
 
 // tailState follows one log incrementally: a worker's run log or a session's transcript.
@@ -397,6 +398,10 @@ func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.notices = !m.notices
 			m.fold.Notices = m.notices // remembered when opened, like the events
 			saveTopState(m.dir, m.fold, teamIDs(m.ps))
+		case key.Matches(msg, k.Filter):
+			m.fold.Status = nextStatus(m.fold.Status)
+			saveTopState(m.dir, m.fold, teamIDs(m.ps))
+			m.keepSel()
 		case key.Matches(msg, k.Mouse):
 			m.mouse = !m.mouse
 			m.keys.mouseOn = m.mouse
@@ -595,8 +600,19 @@ func (m *topModel) switchTab(d int) {
 
 // listOf is what the current tab lists (view.BuildList): the folds are the user's (m.fold), stats
 // the logs read so far (nil where only the ids are wanted).
+// Only the rows of the status `f` chose are listed.
 func (m *topModel) listOf(stats map[string]view.Stats, now time.Time) view.List {
-	return view.BuildList(view.ListInput{State: m.ps.State, Tab: m.tab, Now: now, Open: m.fold.Teams, Gone: m.fold.Gone, Stats: stats})
+	l := view.BuildList(view.ListInput{State: m.ps.State, Tab: m.tab, Now: now, Open: m.fold.Teams, Gone: m.fold.Gone, Stats: stats})
+	if st, ok := view.StatusNamed(m.fold.Status); ok {
+		l = view.KeepStatus(l, []view.Status{st})
+	}
+	return l
+}
+
+// nextStatus is the status `f` goes to from cur: every row, working, waiting, idle, gone, then every row again.
+func nextStatus(cur string) string {
+	order := []string{"", "working", "waiting", "idle", "gone"}
+	return order[(slices.Index(order, cur)+1)%len(order)]
 }
 
 // items are the selectable ids of the current tab, in display order (list).

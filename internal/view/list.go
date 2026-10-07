@@ -3,6 +3,7 @@ package view
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/sting8k/piggery/internal/core"
@@ -192,6 +193,7 @@ type Row struct {
 	Folded      bool     `json:"folded,omitempty"` // a member of a live team that is all gone below: listed only when the team's gone line is open
 	Harness     string   `json:"harness,omitempty"`
 	Model       string   `json:"model,omitempty"`
+	Thinking    string   `json:"thinking,omitempty"` // a member's thinking level as its session reports it, else as stored; "" unknown
 	Ctx         string   `json:"ctx,omitempty"`
 	Turns       string   `json:"turns,omitempty"`
 	Unacked     int      `json:"unacked"`
@@ -290,7 +292,7 @@ func BuildList(in ListInput) List {
 		at := SinceMs(mem.State, mem.StateSince, mem.LastTurnEnd)
 		return Row{Kind: KindMember, ID: mem.ID, Team: t.ID, Depth: tr.Depth, Name: mem.Name, Prefix: tr.Prefix, Role: mem.Role, Gate: mem.Gate,
 			State: mem.State, StateText: StateText(mem.State), Status: StatusOf(mem.State), Dim: closed || mem.State == "gone" || tr.ParentGone,
-			Harness: HarnessLabel(mem.Harness, mem.Headless), Model: ModelID(mem.Model), Ctx: ctx, Turns: turns, Unacked: mem.Unacked,
+			Harness: HarnessLabel(mem.Harness, mem.Headless), Model: ModelID(mem.Model), Thinking: mem.Thinking, Ctx: ctx, Turns: turns, Unacked: mem.Unacked,
 			Age: Ago(mem.CreatedAt, now), Since: Ago(at, now), SinceAt: at, Cwd: RelCwd(g.Dir, mem.Cwd),
 			CreatedAt: mem.CreatedAt, StateSince: mem.StateSince, LastTurnEnd: mem.LastTurnEnd,
 			Actions: &Actions{Pick: Pickable(mem, t.ID, s.Closed), Kill: KillNote(mem.Name, mem.Headless, mem.State) == "", Tail: MemberTailable(mem, in.Readable)}}
@@ -437,4 +439,56 @@ func teamCounts(t core.TeamState) []string {
 		parts = []string{"no members"}
 	}
 	return parts
+}
+
+// KeepStatus is l with only the rows whose status is in keep (none: l as is). A live team keeps its
+// line while one of its members is in keep (a folded team's too, from its Sizing); a team listed as
+// one line keeps it while it or a listed member is; a block, then a directory, with nothing left goes.
+func KeepStatus(l List, keep []Status) List {
+	if len(keep) == 0 {
+		return l
+	}
+	ok := func(r Row) bool { return slices.Contains(keep, r.Status) }
+	out := List{AnyCwd: l.AnyCwd}
+	for _, d := range l.Dirs {
+		var blocks []Block
+		for _, b := range d.Blocks {
+			rows := slices.DeleteFunc(slices.Clone(b.Rows), func(r Row) bool { return !ok(r) })
+			switch {
+			case b.Head != nil:
+				if !slices.ContainsFunc(b.Sizing, ok) {
+					continue
+				}
+			case len(b.Rows) > 0 && b.Rows[0].Kind == KindTeam:
+				if len(rows) == 0 {
+					continue
+				}
+				if !ok(b.Rows[0]) {
+					rows = append([]Row{b.Rows[0]}, rows...)
+				}
+			case len(rows) == 0:
+				continue
+			}
+			b.Rows, b.NoMembers = rows, ""
+			blocks = append(blocks, b)
+			if b.Head != nil && b.Head.Line {
+				out.Items = append(out.Items, TeamRow+b.Head.ID)
+			}
+			for _, r := range b.Rows {
+				out.Items = append(out.Items, r.ID)
+			}
+		}
+		if len(blocks) > 0 {
+			d.Blocks = blocks
+			out.Dirs = append(out.Dirs, d)
+		}
+	}
+	if len(out.Dirs) == 0 {
+		words := make([]string, len(keep))
+		for i, s := range keep {
+			words[i] = s.Word()
+		}
+		out.Empty = "Nothing " + strings.Join(words, " or ") + "."
+	}
+	return out
 }

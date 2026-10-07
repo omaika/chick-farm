@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- Filter the list by status: `ps --status working,waiting` (`working`, `idle`, `waiting`, `gone`);
+  in `top`, `f` lists only one status in turn (working, waiting, idle, gone, then every row; kept
+  for the next `top`); in `web`, a click on a count in the header (working, idle, waiting) lists only
+  that status, several at once, `f` clears it (kept in the browser). A team keeps its line while a
+  member matches.
+- A `thinking` column after `model` in `top`, `ps` and `web`: a member's thinking level as its
+  session reports it, else as it was spawned or last set (`-` when unknown, e.g. inherit). A
+  `display.columns` you wrote lists it only once you add it.
+- `web` has Settings (`s`, or ⚙ in the header): the model and thinking workers start with, per
+  harness profile (`~/.piggery/harness/<h>.json`) and per template role (`spawn.harness`,
+  `spawn.model`, `spawn.thinking` in `~/.piggery/templates/<t>/manifest.yaml`), and each template's
+  `limits` (`depth`, `concurrency`: live workers at once per team, the message and respawn rates).
+  A save writes that
+  value in place and keeps the rest of the file (comments, order, layout); a template's change is
+  checked as `team up` loads it (a role that can spawn with `concurrency: none` is refused), and its warnings (a model pinned with harness
+  `inherit`) are shown. Nothing restarts: teams founded from then on use it, a team already up
+  keeps its own.
+
 ## v0.8.1 - 2026-10-05
 
 After upgrading, run `piggery setup --outdated`: the pi and omp integrations are now 5 and dsh 6

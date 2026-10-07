@@ -66,7 +66,7 @@ func TestPsJSONProjects(t *testing.T) {
 		t.Fatalf("projects\n got %s\nwant %s", gj, wj)
 	}
 	var dirs []string // the text ps lists the same directories, in the same order
-	for _, l := range psLines(r, time.Now(), nil, nil) {
+	for _, l := range psLines(r, time.Now(), nil, nil, nil) {
 		if l.kind == "dir" {
 			dirs = append(dirs, strings.TrimSuffix(l.text, "/"))
 		}
@@ -213,5 +213,37 @@ func TestPsViewCarriesWhatTopSelects(t *testing.T) {
 		} else if a != nil && a.Tail != top.tailable(id) {
 			t.Errorf("%q: ps --view tail %v, top %v", id, a.Tail, top.tailable(id))
 		}
+	}
+}
+
+// ps --status lists only the rows in those statuses: a team's line stays while a member matches, a
+// directory with nothing left goes, and nothing at all says so.
+func TestPsStatusFilter(t *testing.T) {
+	mem := func(id, state string) core.MemberState { return core.MemberState{ID: id, Name: id, State: state} }
+	r := proto.PsResult{State: core.State{
+		Teams: []core.TeamState{{ID: "t", Name: "shop", Root: "/p/a", Members: []core.MemberState{mem("w1", "working"), mem("i1", "idle")}}},
+		Solos: []core.SoloState{{ID: "s1", Name: "s1", State: "idle", Cwd: "/p/b"}}}}
+	text := func(keep string) string {
+		st, err := statuses(keep)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var b strings.Builder
+		for _, l := range psLines(r, time.Now(), nil, nil, st)[1:] {
+			b.WriteString(l.text + "\n")
+		}
+		return b.String()
+	}
+	if got := text("working"); !strings.Contains(got, "team shop") || !strings.Contains(got, "w1") || strings.Contains(got, "i1") || strings.Contains(got, "s1") {
+		t.Fatalf("--status working:\n%s", got)
+	}
+	if got := text("idle, working"); !strings.Contains(got, "w1") || !strings.Contains(got, "i1") || !strings.Contains(got, "s1") {
+		t.Fatalf("--status idle,working:\n%s", got)
+	}
+	if got := text("waiting"); strings.TrimSpace(got) != "Nothing waiting." {
+		t.Fatalf("--status waiting: %q", got)
+	}
+	if _, err := statuses("busy"); err == nil {
+		t.Fatal("an unknown status is accepted")
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 func (e *env) ps(args []string) error {
 	fs := e.flags("ps")
 	asView := fs.Bool("view", false, "print what top shows, as versioned JSON (for the Paseo plugin)")
+	status := fs.String("status", "", "list only the rows in these statuses: working, idle, waiting, gone (comma-separated)")
 	pos, err := parse(fs, args)
 	if err != nil {
 		return err
@@ -32,6 +34,13 @@ func (e *env) ps(args []string) error {
 	if err != nil {
 		return err
 	}
+	keep, err := statuses(*status)
+	if err != nil {
+		return err
+	}
+	if keep != nil && (*asView || e.json) {
+		return fmt.Errorf("%w: --status is for the text ps (top's f, web's header counts filter theirs)", errUsage)
+	}
 	if *asView {
 		return e.psView()
 	}
@@ -39,7 +48,7 @@ func (e *env) ps(args []string) error {
 		return e.psJSON()
 	}
 	return do(e, proto.VerbPs, core.StateArgs{}, func(w io.Writer, r proto.PsResult) {
-		for _, l := range psLines(r, time.Now(), nil, cols) {
+		for _, l := range psLines(r, time.Now(), nil, cols, keep) {
 			fmt.Fprintln(w, l.text)
 			if l.kind == "daemon" { // the header: the daemon's line, then what setup has to bring up
 				if n := proto.Notice(r.Outdated); n != "" {
@@ -48,6 +57,24 @@ func (e *env) ps(args []string) error {
 			}
 		}
 	})
+}
+
+// statuses are the statuses of a comma-separated list of their words (view.Status.Word); nil for "".
+func statuses(list string) ([]view.Status, error) {
+	var out []view.Status
+	for w := range strings.SplitSeq(list, ",") {
+		if w = strings.TrimSpace(w); w == "" {
+			continue
+		}
+		st, ok := view.StatusNamed(w)
+		if !ok {
+			return nil, fmt.Errorf("%w: unknown status %q (working, idle, waiting, gone)", errUsage, w)
+		}
+		if !slices.Contains(out, st) {
+			out = append(out, st)
+		}
+	}
+	return out, nil
 }
 
 // columns is display.columns from config.yaml, read on every run; an unknown column is a
@@ -78,13 +105,14 @@ type psLine struct {
 // view's; what stays here is ps's own drawing: its formats, the team line's gate/held/unacked, the
 // protocol tag, the worker id. stats is context and turns per worker (participant id), nil for ps
 // (no ctx or turns then). cols are display.columns: the columns after the name, in order, the same
-// for every row; a column a row does not have is "-", its cwd blank when it is the directory.
-func psLines(r proto.PsResult, now time.Time, stats map[string]view.Stats, cols []string) []psLine {
+// for every row; a column a row does not have is "-", its cwd blank when it is the directory. keep
+// lists only the rows in those statuses (view.KeepStatus; nil: every row).
+func psLines(r proto.PsResult, now time.Time, stats map[string]view.Stats, cols []string, keep []view.Status) []psLine {
 	shownCols := shown(cols, server.DisplayColumns)[1:]
 	// fields writes a row's columns in cols order, each as ps writes it; val has the row's.
 	fields := func(val map[string]string) string {
 		format := map[string]string{"role": "%-10s", "state": "%-19s", "harness": "%-13s", "model": "%-22s",
-			"ctx": "ctx %-6s", "turns": "turns %-4s", "unacked": "unacked=%-3s", "age": "age %-8s", "since": "for %-8s",
+			"thinking": "%-8s", "ctx": "ctx %-6s", "turns": "turns %-4s", "unacked": "unacked=%-3s", "age": "age %-8s", "since": "for %-8s",
 			"cwd": "%-16s"}
 		var b strings.Builder
 		for _, c := range shownCols {
@@ -101,7 +129,7 @@ func psLines(r proto.PsResult, now time.Time, stats map[string]view.Stats, cols 
 	}
 	// vals is a row's columns as ps words them (ages as since writes them, from the row's own times).
 	vals := func(row view.Row) map[string]string {
-		return map[string]string{"state": row.State, "harness": row.Harness, "model": row.Model, "unacked": fmt.Sprint(row.Unacked),
+		return map[string]string{"state": row.State, "harness": row.Harness, "model": row.Model, "thinking": row.Thinking, "unacked": fmt.Sprint(row.Unacked),
 			"age": since(row.CreatedAt, now), "since": since(row.SinceAt, now), "cwd": row.Cwd, "ctx": row.Ctx, "turns": row.Turns}
 	}
 	teams, members, solos := map[string]core.TeamState{}, map[string]core.MemberState{}, map[string]core.SoloState{}
@@ -116,7 +144,11 @@ func psLines(r proto.PsResult, now time.Time, stats map[string]view.Stats, cols 
 	}
 	out := []psLine{{kind: "daemon", text: fmt.Sprintf("piggery pid=%d up=%s  held=%d unacked=%d",
 		r.PID, since(r.StartedAt, now), r.Held, r.Unacked)}}
-	for _, d := range view.BuildList(view.ListInput{State: r.State, Tab: view.TabOpen, Now: now, Stats: stats}).Dirs {
+	list := view.KeepStatus(view.BuildList(view.ListInput{State: r.State, Tab: view.TabOpen, Now: now, Stats: stats}), keep)
+	if list.Empty != "" && keep != nil {
+		out = append(out, psLine{kind: "empty", text: list.Empty})
+	}
+	for _, d := range list.Dirs {
 		out = append(out, psLine{kind: "dir", text: d.Label})
 		for _, b := range d.Blocks {
 			if h := b.Head; h != nil {
