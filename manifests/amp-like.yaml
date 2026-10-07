@@ -34,7 +34,7 @@ roles:
     can_spawn: []
     can_pin: false
     can_set_cwd: false
-    skills: [pre-mortem, architecture-premise-audit]   # piggery's skills for the role: its card names each, when to use it and its file; inherit: none
+    skills: [pre-mortem, diagnosing-bugs]   # piggery's skills for the role: its card names each, when to use it and its file; inherit: none
     spawn:
       harness: inherit
       model: inherit         # best: a strong reasoning model of another family than the lead's
