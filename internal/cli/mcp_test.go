@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -128,13 +129,16 @@ func TestMCP(t *testing.T) {
 	}
 	defer inbox.Close()
 	nudges := make(chan string, 4)
+	var accepted, read atomic.Int32 // for the failure: how far a nudge got
 	go func() {
 		for {
 			c, err := inbox.Accept()
 			if err != nil {
 				return
 			}
+			accepted.Add(1)
 			b, _ := io.ReadAll(c)
+			read.Add(1)
 			nudges <- string(b)
 		}
 	}()
@@ -188,7 +192,17 @@ func TestMCP(t *testing.T) {
 			t.Fatalf("nudge = %q", n)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("no nudge after a wake push")
+		s.mu.Lock()
+		sent, connected := s.nudges, s.conn != nil && !s.conn.isDead()
+		s.mu.Unlock()
+		d.mu.Lock()
+		var verbs []string
+		for _, c := range d.calls {
+			verbs = append(verbs, c.Verb)
+		}
+		d.mu.Unlock()
+		t.Fatalf("no nudge after a wake push: nudge called %d time(s), inbox accepted %d and read %d, connected %v, daemon calls %v",
+			sent, accepted.Load(), read.Load(), connected, verbs)
 	}
 
 	mu.Lock()
