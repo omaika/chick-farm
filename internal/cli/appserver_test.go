@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -47,7 +48,8 @@ func TestSharedAppServerThreads(t *testing.T) {
 	t.Setenv("PIGGERY_DISABLED", "")
 
 	e := &env{dir: dir, stdout: io.Discard}
-	cwdA, cwdB := t.TempDir(), t.TempDir()
+	cwdA, _ := filepath.EvalSymlinks(t.TempDir()) // as the daemon shows a cwd (macOS /private, a Windows long name)
+	cwdB, _ := filepath.EvalSymlinks(t.TempDir())
 	for _, th := range []struct{ session, cwd string }{{"thread-a", cwdA}, {"thread-b", cwdB}} {
 		in, _ := json.Marshal(map[string]string{"session_id": th.session, "source": "startup", "cwd": th.cwd}) // a Windows cwd has backslashes
 		e.runHook("codex", "SessionStart", bytes.NewReader(in), io.Discard)
