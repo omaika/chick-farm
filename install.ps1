@@ -1,7 +1,7 @@
 # Install piggery on Windows from a GitHub release: the binary for this CPU, checked against the
 # release's checksums.txt, into $env:PIGGERY_INSTALL_DIR (default ~\.local\bin). No admin.
 #
-#   irm https://raw.githubusercontent.com/omaika/chick-farm/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/omaika/chicken-farm/main/install.ps1 | iex
 #
 # $env:PIGGERY_VERSION = "vX.Y.Z" installs that release instead of the latest.
 & {
@@ -10,7 +10,7 @@
 
 	function Fail($msg) { throw "piggery install: $msg" }
 
-	$repo = 'https://github.com/omaika/chick-farm/releases'
+	$repo = 'https://github.com/omaika/chicken-farm/releases'
 	$dir = if ($env:PIGGERY_INSTALL_DIR) { $env:PIGGERY_INSTALL_DIR } else { Join-Path $HOME '.local\bin' }
 
 	$cpu = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
