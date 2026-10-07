@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- opencode 1.x (tested with 1.18.34), from sting8k/piggery v0.8.0: an opencode session you open
+  joins piggery through a plugin, and a team can start opencode workers (`opencode serve`, one per
+  worker). Mail wakes an idle session and reaches a busy one at its next step; `abort`, `stop`,
+  `resume` and `model` work on its workers. `setup opencode` adds one `plugin` entry to your
+  `opencode.json` and refuses an `opencode.jsonc` (it prints the line to add by hand). Workers keep
+  your opencode setup, except the `question` and `task` tools (`disabled_tools` in
+  `harness/opencode.json`; a role gets one back with `spawn.allow_tools`). Run `piggery restart`,
+  then `piggery setup opencode`.
+- Template `amp-like`, after [Amp](https://ampcode.com)'s oracle and code review: a lead does the
+  work and calls an oracle (hard reasoning) or a reviewer (one diff), each answering once. It pays
+  off when they run another model family than the lead.
+- Template `gastown-like`, after [Gas Town](https://github.com/gastownhall/gastown): a mayor splits
+  the work, polecats do each task on their own branch and worktree, and a refinery merges the
+  branches one at a time into an integration branch. Your own branch moves only when you say.
+- `council`: the chair stops at the verdict and starts agents for other work, such as carrying out
+  the decision, only when you ask.
+- [manifests/README.md](manifests/README.md) draws every built-in template, with when to pick it,
+  and `AGENTS.md` gives the rules that keep the design intact, for people and coding agents.
+- `setup <harness>` keeps one copy of each of your config files it is about to change for the first
+  time, in `~/.piggery/backups/setup/<harness>/`. `setup remove` still takes out only piggery's part
+  and never restores the copy.
+- Fix: `setup pi --ext` then `setup remove pi` left a `settings.json` of `{}` where there was none,
+  and could re-indent other values in it (such as `packages`).
 - Fix: mail that reached a pi session at the very end of a reply was shown to the model, and pi
   went on working with it, but piggery took the turn as finished; mail sent after that waited,
   unannounced. The turn now stays open while pi works on that mail. The pi and omp integrations
