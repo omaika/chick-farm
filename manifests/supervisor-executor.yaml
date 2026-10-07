@@ -2,7 +2,8 @@
 # The supervisor splits work and spawns executor workers. Every role talks with `send`; routing is
 # the fence: an executor reaches only the supervisor. The prompts say how to hand a task back (a
 # `send` with kind handback) and that questioning the task mid-way is welcome. The review loop is
-# the supervisor reading the handback and replying with kind=rework, or closing. No extra state.
+# the supervisor reading the handback and replying with kind=rework, or closing. What no task holds
+# (the goal, decisions, dropped approaches) the supervisor keeps on the board.
 template: supervisor-executor
 summary: A supervisor splits a goal (code, research, writing, operations…) into checkable tasks and judges each; executors do them, in parallel only when that helps.
 when_to_use:             # selection criteria: the templates action lists them
@@ -19,7 +20,7 @@ roles:
     instructions_file: prompts/supervisor.md   # inlined by `piggery --admin team up`
     tools: [send, inbox, who, agent]
     can_spawn: [executor]
-    can_pin: false
+    can_pin: true
     can_set_cwd: false
     skills: [grilling, pre-mortem, architecture-premise-audit, retrospective]   # piggery's skills for the role: its card names each, when to use it and its file; inherit: none
     spawn:                 # how piggery starts this role's workers

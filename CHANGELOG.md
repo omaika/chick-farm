@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `supervisor-executor`: the supervisor may pin (`can_pin: true`) and its prompt says to keep on
+  the board what no task holds (the goal, decisions and why, approaches dropped), replacing the pin
+  as they change, and to read the board first when it comes back without the team's history. An
+  installed `manifest.yaml` you edited (Settings edits it too) is not updated: set the supervisor's
+  `can_pin: true` yourself, or it is refused when it pins.
 - Filter the list by status: `ps --status working,waiting` (`working`, `idle`, `waiting`, `gone`);
   in `top`, `f` lists only one status in turn (working, waiting, idle, gone, then every row; kept
   for the next `top`); in `web`, a click on a count in the header (working, idle, waiting) lists only
