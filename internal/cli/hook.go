@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/sting8k/piggery/internal/core"
@@ -209,6 +211,12 @@ func (e *env) runHook(harness, hook string, stdin io.Reader, stderr io.Writer) {
 		if host == "" {
 			return
 		}
+		if sharedAppServer(host) { // one app-server, many threads: one host per thread
+			if in.SessionID == "" {
+				return // fail closed: never the plain pid host
+			}
+			host = threadHost(host, in.SessionID)
+		}
 		join = func(source string) error {
 			var jr core.JoinResult
 			a := core.JoinAutoArgs{Cwd: in.Cwd, Harness: harness, Mode: "interactive",
@@ -248,6 +256,29 @@ func (e *env) runHook(harness, hook string, stdin io.Reader, stderr io.Writer) {
 // sessionHost is the host of the session this process serves: its nearest parent process named
 // after one of the harnesses (a session host: claude, codex), as "<name>:<pid>:<start time>".
 var sessionHost = func(harnesses ...string) string { return processHost(os.Getppid(), harnesses...) }
+
+// threadHost is the host of one thread under a shared app-server: the app-server's host and the
+// thread's session id (the hook's session_id; piggery mcp reads the same value from _meta.sessionId
+// of a tool call). The daemon treats it as any other host string.
+func threadHost(host, session string) string { return host + "/" + session }
+
+// sharedAppServer reports whether host (from processHost) is a Codex app-server that serves many
+// threads (Codex Desktop: one `codex app-server --listen ... --managed-daemon` with one piggery mcp
+// child): `app-server` in its arguments. A piggery worker's app-server has PIGGERY_ID, so it never
+// gets here (it is not a session). A var for tests.
+var sharedAppServer = func(host string) bool {
+	name, rest, _ := strings.Cut(host, ":")
+	pid, _, _ := strings.Cut(rest, ":")
+	if name != "codex" {
+		return false
+	}
+	n, err := strconv.Atoi(pid)
+	if err != nil {
+		return false
+	}
+	_, command, alive, err := platform.Info(context.Background(), n)
+	return err == nil && alive && slices.Contains(strings.Fields(command), "app-server")
+}
 
 // processHost names the harness process a session lives in, "<name>:<pid>:<start time>" (start
 // time: a reused pid is another host). Its hooks and its MCP server are its children (captured

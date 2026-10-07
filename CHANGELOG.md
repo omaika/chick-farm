@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix: Codex Desktop, and TUIs started with `--remote`, run every thread in one `codex app-server`,
+  so piggery made them one participant and a wake could reach the wrong thread. Under a shared
+  app-server each thread is now its own participant (its host names the thread's session id); a
+  tool call there without a session id is refused. From sting8k/piggery v0.7.1.
 - `supervisor-executor`: the supervisor may pin (`can_pin: true`) and its prompt says to keep on
   the board what no task holds (the goal, decisions and why, approaches dropped), replacing the pin
   as they change, and to read the board first when it comes back without the team's history. An
